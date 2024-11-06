@@ -56,7 +56,8 @@ scoped-expression
 	;
 
 unary-expression
-	: negative    : `-` expression ;
+	: invocation  : expression expression ;
+	| negative    : `-` expression ;
 	| negation    : `!` expression ;
 	| not         : `~` expression ;
 	| address     : `@` expression ;
@@ -73,7 +74,6 @@ binary-expression
 	| multiplication            : expression `*`   expression ;
 	| division                  : expression `/`   expression ;
 	| remainder                 : expression `%`   expression ;
-	| not                       : expression `~`   expression ;
 	| and                       : expression `&`   expression ;
 	| or                        : expression `|`   expression ;
 	| xor                       : expression `^`   expression ;
@@ -87,12 +87,12 @@ binary-expression
 	| minority                  : expression `<`   expression ;
 	| inclusive-majority        : expression `>=`  expression ;
 	| inclusive-minority        : expression `<=`  expression ;
+	| assignment                : expression `=`   expression ;
 	| addition-assignment       : expression `+=`  expression ;
 	| subtraction-assignment    : expression `-=`  expression ;
 	| multiplication-assignment : expression `*=`  expression ;
 	| division-assignment       : expression `/=`  expression ;
 	| remainder-assignment      : expression `%=`  expression ;
-	| not-assignment            : expression `~=`  expression ;
 	| and-assignment            : expression `&=`  expression ;
 	| or-assignment             : expression `|=`  expression ;
 	| xor-assignment            : expression `^=`  expression ;
@@ -101,5 +101,5 @@ binary-expression
 	;
 
 ternary-expression
-	: condition : expression `?` expression [`:` expression]
+	: condition : expression `?` expression [`!` expression]
 	;

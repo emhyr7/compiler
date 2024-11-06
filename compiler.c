@@ -1,5 +1,11 @@
 #include "compiler.h"
 
+#define KIBIBYTE(x) ((uint64)(x) << 10)
+#define MEBIBYTE(x) (KIBIBYTE(x) << 10)
+#define GIBIBYTE(x) (MEBIBYTE(x) << 10)
+
+_Noreturn void terminate(int);
+
 uint32 format_v(utf8 *buffer, uint32 size, const utf8 *format, vargs vargs);
 uint32 format(utf8 *buffer, uint32 size, const utf8 *format, ...);
 void print_v(const utf8 *format, vargs vargs);
@@ -111,7 +117,6 @@ typedef enum : uint8
 	token_tag_tilde                = '~',
 	token_tag_name                 = 'A',
 	token_tag_binary,
-	token_tag_octal,
 	token_tag_digital,
 	token_tag_hexadecimal,
 	token_tag_decimal,
@@ -171,7 +176,6 @@ static utf8 *representations_of_token_tags[] =
 	[token_tag_tilde]                          = "`~`",
 	[token_tag_name]                           = "name",
 	[token_tag_binary]                         = "binary",
-	[token_tag_octal]                          = "octal",
 	[token_tag_digital]                        = "digital",
 	[token_tag_hexadecimal]                    = "hexadecimal",
 	[token_tag_decimal]                        = "decimal",
@@ -234,10 +238,11 @@ static utf32 peek(uint8 *increment, const caret *caret)
 	if(position < caret->source->data_size)
 	{
 		utf8 bytes[4] = {};
-		for(uint8 i = 0; i < sizeof(bytes) / sizeof(bytes[0]); ++i)
+		for(uint8 i = 0; i < sizeof(bytes) / sizeof(bytes[0]); i += 1)
 		{
 			bytes[i] = caret->source->data[position];
-			if(++position >= caret->source->data_size) break;
+			if(position >= caret->source->data_size) break;
+			position += 1;
 		}
 		*increment = decode_utf8(&character, bytes);
 	}
@@ -257,10 +262,10 @@ static utf32 advance(caret *caret)
 	caret->location.position += caret->increment;
 	if(caret->character == '\n')
 	{
-		++caret->location.row;
+		caret->location.row += 1;
 		caret->location.column = 0;
 	}
-	++caret->location.column;
+	caret->location.column += 1;
 	caret->character = character;
 	caret->increment = increment;
 	return character;
@@ -320,7 +325,7 @@ _Noreturn static inline void fail(const source *source, const range *range, cons
 	GET_VARGS(vargs, message);
 	report_v(severity_failure, source, range, message, vargs);
 	END_VARGS(vargs);
-	TRAP();
+	terminate(-1);
 	UNREACHABLE();
 }
 
@@ -515,10 +520,161 @@ failed:
 	fail(caret->source, &token->range, failure_message);
 }
 
-typedef struct
+typedef enum
 {
+	node_tag_invocation,
+	node_tag_negative,
+	node_tag_negation,
+	node_tag_not,
+	node_tag_address,
+	node_tag_indirection,
+	node_tag_jump,
+	node_tag_inference,
 	
+	node_tag_list,
+	node_tag_resolution,
+	node_tag_addition,
+	node_tag_subtraction,
+	node_tag_multiplication,
+	node_tag_division,
+	node_tag_remainder,
+	node_tag_and,
+	node_tag_or,
+	node_tag_xor,
+	node_tag_lsh,
+	node_tag_rsh,
+	node_tag_conjunction,
+	node_tag_disjunction,
+	node_tag_equality,
+	node_tag_inequality,
+	node_tag_majority,
+	node_tag_minority,
+	node_tag_inclusive_majority,
+	node_tag_inclusive_minority,
+	node_tag_assignment,
+	node_tag_addition_assignment,
+	node_tag_subtraction_assignment,
+	node_tag_multiplication_assignment,
+	node_tag_division_assignment,
+	node_tag_remainder_assignment,
+	node_tag_and_assignment,
+	node_tag_or_assignment,
+	node_tag_xor_assignment,
+	node_tag_lsh_assignment,
+	node_tag_rsh_assignment,
+	
+	node_tag_condition,
+
+	node_tag_value,
+	node_tag_label,
+	node_tag_routine,
+	node_tag_scope,
+
+	node_tag_integer,
+	node_tag_real,
+	node_tag_string,
+	node_tag_reference,
+
+	node_tag_subexpression,
 } node_tag;
+
+static const utf8 *representations_of_node_tags[] =
+{
+	[node_tag_invocation]                = "invocation",
+	[node_tag_negative]                  = "negative",
+	[node_tag_negation]                  = "negation",
+	[node_tag_not]                       = "NOT",
+	[node_tag_address]                   = "address",
+	[node_tag_indirection]               = "indirection",
+	[node_tag_jump]                      = "jump",
+	[node_tag_inference]                 = "inference",
+	[node_tag_list]                      = "list",
+	[node_tag_resolution]                = "resolution",
+	[node_tag_addition]                  = "addition",
+	[node_tag_subtraction]               = "subtraction",
+	[node_tag_multiplication]            = "multiplication",
+	[node_tag_division]                  = "division",
+	[node_tag_remainder]                 = "remainder",
+	[node_tag_and]                       = "AND",
+	[node_tag_or]                        = "OR",
+	[node_tag_xor]                       = "XOR",
+	[node_tag_lsh]                       = "LSH",
+	[node_tag_rsh]                       = "RSH",
+	[node_tag_conjunction]               = "conjunction",
+	[node_tag_disjunction]               = "disjunction",
+	[node_tag_equality]                  = "equality",
+	[node_tag_inequality]                = "inequality",
+	[node_tag_majority]                  = "majority",
+	[node_tag_minority]                  = "minority",
+	[node_tag_inclusive_majority]        = "inclusive majority",
+	[node_tag_inclusive_minority]        = "inclusive minority",
+	[node_tag_addition_assignment]       = "addition assignment",
+	[node_tag_subtraction_assignment]    = "subtraction assignment",
+	[node_tag_multiplication_assignment] = "multiplication assignment",
+	[node_tag_division_assignment]       = "division assignment",
+	[node_tag_remainder_assignment]      = "remainder assignment",
+	[node_tag_and_assignment]            = "AND assignment",
+	[node_tag_or_assignment]             = "OR assignment",
+	[node_tag_xor_assignment]            = "XOR assignment",
+	[node_tag_lsh_assignment]            = "LSH assignment",
+	[node_tag_rsh_assignment]            = "RSH assignment",
+	[node_tag_condition]                 = "condition",
+	[node_tag_value]                     = "value",
+	[node_tag_label]                     = "label",
+	[node_tag_routine]                   = "routine",
+	[node_tag_scope]                     = "scope",
+	[node_tag_integer]                   = "integer",
+	[node_tag_real]                      = "real",
+	[node_tag_string]                    = "string",
+	[node_tag_reference]                 = "reference",
+	[node_tag_subexpression]             = "subexpression",
+};
+
+typedef uint8 precedence;
+
+static precedence precedences[] =
+{
+	[node_tag_resolution]                = 14,
+	[node_tag_invocation]                = 13,
+	[node_tag_negative]                  = 13,
+	[node_tag_negation]                  = 13,
+	[node_tag_not]                       = 13,
+	[node_tag_address]                   = 13,
+	[node_tag_indirection]               = 13,
+	[node_tag_jump]                      = 13,
+	[node_tag_inference]                 = 13,
+	[node_tag_multiplication]            = 12,
+	[node_tag_division]                  = 12,
+	[node_tag_remainder]                 = 12,
+	[node_tag_addition]                  = 11,
+	[node_tag_subtraction]               = 11,
+	[node_tag_lsh]                       = 10,
+	[node_tag_rsh]                       = 10,
+	[node_tag_majority]                  = 9,
+	[node_tag_minority]                  = 9,
+	[node_tag_inclusive_majority]        = 9,
+	[node_tag_inclusive_minority]        = 9,
+	[node_tag_equality]                  = 8,
+	[node_tag_inequality]                = 8,
+	[node_tag_and]                       = 7,
+	[node_tag_xor]                       = 6,
+	[node_tag_or]                        = 5,
+	[node_tag_conjunction]               = 4,
+	[node_tag_disjunction]               = 3,
+	[node_tag_condition]                 = 2,
+	[node_tag_assignment]                = 2,
+	[node_tag_addition_assignment]       = 2,
+	[node_tag_subtraction_assignment]    = 2,
+	[node_tag_multiplication_assignment] = 2,
+	[node_tag_division_assignment]       = 2,
+	[node_tag_remainder_assignment]      = 2,
+	[node_tag_and_assignment]            = 2,
+	[node_tag_or_assignment]             = 2,
+	[node_tag_xor_assignment]            = 2,
+	[node_tag_lsh_assignment]            = 2,
+	[node_tag_rsh_assignment]            = 2,
+	[node_tag_list]                      = 1,
+};
 
 typedef struct node node;
 
@@ -572,18 +728,18 @@ struct rountine
 typedef struct
 {
 	uint64 value;
-} digital;
+} integer;
 
 typedef struct
 {
 	real64 value;
-} decimal;
+} real;
 
 typedef struct
 {
-	utf8 *value;
+	uint8 *value;
 	uint32 size;
-} text;
+} string;
 
 typedef struct
 {
@@ -607,9 +763,9 @@ struct node
 	union
 	{
 		identifier identifier;
-		digital digital;
-		decimal decimal;
-		text text;
+		integer integer;
+		real real;
+		string string;
 		unary unary;
 		binary binary;
 		ternary ternary;
@@ -618,6 +774,268 @@ struct node
 		routine *routine;
 	} data[];
 };
+
+void parse_integer(integer *integer, token *token, caret *caret)
+{
+	ASSERT(token->tag == token_tag_binary || token->tag == token_tag_digital || token->tag == token_tag_hexadecimal);
+
+	uint8 base;
+	switch(token->tag)
+	{
+	case token_tag_binary:
+		base = 2;
+		break;
+	case token_tag_digital:
+		base = 10;
+		break;
+	case token_tag_hexadecimal:
+		base = 16;
+		break;
+	default:
+		UNREACHABLE();
+	}
+
+	integer->value = 0;
+	for(const utf8 *pointer = caret->source->data + token->range.beginning,
+	               *ending  = caret->source->data + token->range.ending;
+	    pointer < ending;
+	    pointer += 1)
+	{
+		integer->value = integer->value * base + *pointer - (*pointer >= '0' && *pointer <= '9' ? '0' : *pointer >= 'A' && *pointer <= 'F' ? 'A' : 'a');
+	}
+
+	tokenize(token, caret);
+}
+
+#include <stdlib.h> // TODO(Emhyr): ditch <stdlib.h>
+
+void parse_real(real *real, token *token, caret *caret)
+{
+	ASSERT(token->tag == token_tag_decimal);
+	char *ending;
+	real->value = strtod(caret->source->data + token->range.beginning, &ending);
+	tokenize(token, caret);
+}
+
+void parse_string(string *string, token *token, caret *caret)
+{
+	ASSERT(token->tag == token_tag_text);
+	const uint8 *input  = (uint8 *)caret->source->data + token->range.beginning + 1;
+	const uint8 *ending = (uint8 *)caret->source->data + token->range.ending;
+	if(input == ending) fail(caret->source, &token->range, "empty string");
+	ending -= 1;
+	string->value = allocate_memory(ending - input);
+	uint8 *output = string->value;
+	while(input < ending)
+	{
+		uint8 byte = *input;
+		input += 1;
+		if(byte == '\\')
+		{
+			uint8 escape = *input;
+			input += 1;
+			switch(escape)
+			{
+			case 'b':
+				byte = 0x7;
+				break;
+			case 'f':
+				byte = 0xc;
+				break;
+			case 'n':
+				byte = 0xa;
+				break;
+			case 'r':
+				byte = 0xd;
+				break;
+			case 't':
+				byte = 0x9;
+				break;
+			case 'v':
+				byte = 0xb;
+				break;
+			default:
+				uint8 buffer = byte;
+				if(check_digital(byte))
+				{
+					buffer = 0;
+					do
+					{
+						buffer = buffer * 10 + '0' - byte;
+						byte = *input;
+						input += 1;
+					}
+					while(check_digital(byte));
+					byte = buffer;
+				}
+				break;
+			}
+		}
+		*output = byte;
+		output += 1;
+	}
+	string->size = output - string->value;
+	tokenize(token, caret);
+}
+
+void parse_identifier(identifier *identifier, token *token, caret *caret)
+{
+	ASSERT(token->tag == token_tag_name);
+	identifier->value = caret->source->data + token->range.beginning;
+	identifier->size = token->range.ending - token->range.beginning;
+	tokenize(token, caret);
+}
+
+node *parse_expression(precedence other_precedence, token *token, caret *caret, buffer *buffer)
+{
+	uint32 beginning = token->range.beginning;
+	uint32 row = token->range.row;
+	uint32 column = token->range.column;
+
+	node *left = 0;
+	switch(token->tag)
+	{
+	case token_tag_binary:
+	case token_tag_digital:
+	case token_tag_hexadecimal:
+		left = push_into_buffer(sizeof(node) + sizeof(integer), alignof(node), buffer);
+		left->tag = node_tag_integer;
+		parse_integer(&left->data->integer, token, caret);
+		break;
+		// TODO(Emhyr): allow scientific and hex notation
+	case token_tag_decimal:
+		left = push_into_buffer(sizeof(node) + sizeof(real), alignof(node), buffer);
+		left->tag = node_tag_real;
+		parse_real(&left->data->real, token, caret);
+		break;
+	case token_tag_text:
+		left = push_into_buffer(sizeof(node) + sizeof(string), alignof(node), buffer);
+		left->tag = node_tag_string;
+		parse_string(&left->data->string, token, caret);
+		break;
+	case token_tag_name:
+		left = push_into_buffer(sizeof(node) + sizeof(identifier), alignof(node), buffer);
+		left->tag = node_tag_reference;
+		parse_identifier(&left->data->identifier, token, caret);
+		break;
+
+	case token_tag_left_parenthesis:
+		left = push_into_buffer(sizeof(node) + sizeof(unary), alignof(node), buffer);
+		left->tag = node_tag_subexpression;
+		tokenize(token, caret);
+		left->data->unary.other = parse_expression(0, token, caret, buffer);
+		if(token->tag == token_tag_right_parenthesis) tokenize(token, caret);
+		else fail(caret->source, &token->range, "unterminated subexpression; expected `)`");
+		break;
+
+		node_tag left_tag;
+	case token_tag_hyphen_minus:      left_tag = node_tag_negative;    goto unary;
+	case token_tag_exclamation_mark:  left_tag = node_tag_negation;    goto unary;
+	case token_tag_tilde:             left_tag = node_tag_not;         goto unary;
+	case token_tag_at_sign:           left_tag = node_tag_address;     goto unary;
+	case token_tag_backslash:         left_tag = node_tag_indirection; goto unary;
+	case token_tag_circumflex_accent: left_tag = node_tag_jump;        goto unary;
+	case token_tag_apostrophe:        left_tag = node_tag_inference;   goto unary;
+	unary:
+		left = push_into_buffer(sizeof(node) + sizeof(unary), alignof(node), buffer);
+		left->tag = left_tag;
+		tokenize(token, caret);
+		left->data->unary.other = parse_expression(precedences[left_tag], token, caret, buffer);
+		break;
+
+	case token_tag_colon:
+	case token_tag_semicolon:
+	case token_tag_right_parenthesis:
+	case token_tag_right_curly_bracket:
+		goto finished;
+
+	default:
+		fail(caret->source, &token->range, "unexpected token");
+	}
+
+	left->range.beginning = beginning;
+	left->range.ending = token->range.ending;
+	left->range.row = row;
+	left->range.column = column;
+
+	for(;;)
+	{
+		node *right;
+		switch(token->tag)
+		{
+			node_tag right_tag;
+		case token_tag_comma:                           right_tag = node_tag_list;                      goto binary;
+		case token_tag_full_stop:                       right_tag = node_tag_resolution;                goto binary;
+		case token_tag_plus_sign:                       right_tag = node_tag_addition;                  goto binary;
+		case token_tag_hyphen_minus:                    right_tag = node_tag_subtraction;               goto binary;
+		case token_tag_asterisk:                        right_tag = node_tag_multiplication;            goto binary;
+		case token_tag_slash:                           right_tag = node_tag_division;                  goto binary;
+		case token_tag_percent_sign:                    right_tag = node_tag_remainder;                 goto binary;
+		case token_tag_ampersand:                       right_tag = node_tag_and;                       goto binary;
+		case token_tag_vertical_bar:                    right_tag = node_tag_or;                        goto binary;
+		case token_tag_circumflex_accent:               right_tag = node_tag_xor;                       goto binary;
+		case token_tag_less_than_sign_2:                right_tag = node_tag_lsh;                       goto binary;
+		case token_tag_greater_than_sign_2:             right_tag = node_tag_rsh;                       goto binary;
+		case token_tag_ampersand_2:                     right_tag = node_tag_conjunction;               goto binary;
+		case token_tag_vertical_bar_2:                  right_tag = node_tag_disjunction;               goto binary;
+		case token_tag_equal_sign_2:                    right_tag = node_tag_equality;                  goto binary;
+		case token_tag_exclamation_mark_equal_sign:     right_tag = node_tag_inequality;                goto binary;
+		case token_tag_greater_than_sign:               right_tag = node_tag_majority;                  goto binary;
+		case token_tag_less_than_sign:                  right_tag = node_tag_minority;                  goto binary;
+		case token_tag_greater_than_sign_equal_sign:    right_tag = node_tag_inclusive_majority;        goto binary;
+		case token_tag_less_than_sign_equal_sign:       right_tag = node_tag_inclusive_minority;        goto binary;
+		case token_tag_equal_sign:                      right_tag = node_tag_assignment;                goto binary;
+		case token_tag_plus_sign_equal_sign:            right_tag = node_tag_addition_assignment;       goto binary;
+		case token_tag_hyphen_minus_equal_sign:         right_tag = node_tag_subtraction_assignment;    goto binary;
+		case token_tag_asterisk_equal_sign:             right_tag = node_tag_multiplication_assignment; goto binary;
+		case token_tag_slash_equal_sign:                right_tag = node_tag_division_assignment;       goto binary;
+		case token_tag_percent_sign_equal_sign:         right_tag = node_tag_remainder_assignment;      goto binary;
+		case token_tag_ampersand_equal_sign:            right_tag = node_tag_and_assignment;            goto binary;
+		case token_tag_vertical_bar_equal_sign:         right_tag = node_tag_or_assignment;             goto binary;
+		case token_tag_circumflex_accent_equal_sign:    right_tag = node_tag_xor_assignment;            goto binary;
+		case token_tag_less_than_sign_2_equal_sign:     right_tag = node_tag_lsh_assignment;            goto binary;
+		case token_tag_greater_than_sign_2_equal_sign:  right_tag = node_tag_rsh_assignment;            goto binary;
+		default:                                        right_tag = node_tag_invocation;                goto binary;
+		case token_tag_question_mark:                   right_tag = node_tag_condition;                 goto binary;
+		binary:
+			precedence right_precedence = precedences[right_tag];
+			if(right_precedence <= other_precedence) goto finished;
+			if(right_tag != node_tag_invocation) tokenize(token, caret);
+			right = push_into_buffer(sizeof(node) + (right_tag == node_tag_condition ? sizeof(ternary) : sizeof(binary)), alignof(node), buffer);
+			right->tag = right_tag;
+			right->data->binary.left = left;
+			right->data->binary.right = parse_expression(right_tag == node_tag_condition ? 0 : right_precedence, token, caret, buffer);
+			if(right_tag == node_tag_condition)
+			{
+				if(token->tag == token_tag_exclamation_mark)
+				{
+					tokenize(token, caret);
+					right->data->ternary.other = parse_expression(right_precedence, token, caret, buffer);
+				}
+				else right->data->ternary.other = 0;
+			}
+			break;
+			
+		case token_tag_colon:
+		case token_tag_semicolon:
+		case token_tag_right_parenthesis:
+		case token_tag_right_curly_bracket:
+			goto finished;
+
+		case token_tag_etx:
+			fail(caret->source, &token->range, "unfinished expression");
+		}
+
+		right->range.beginning = beginning;
+		right->range.ending = token->range.ending;
+		right->range.row = row;
+		right->range.column = column;
+		left = right;
+	}
+
+finished:
+	return left;
+}
 
 typedef struct module module;
 
@@ -641,9 +1059,13 @@ int start(int argc, utf8 *argv[])
 		caret caret = {&source, {0, 0, 0}, '\n', 0};
 		advance(&caret);
 		token token;
-		while(tokenize(&token, &caret) != token_tag_etx)
+		buffer *buffer = allocate_buffer(GIBIBYTE(1), system_page_size);
+		tokenize(&token, &caret);
+		while(token.tag != token_tag_etx)
 		{
-			report(severity_verbose, &source, &token.range, "%s", representations_of_token_tags[token.tag]);
+			node *node = parse_expression(0, &token, &caret, buffer);
+			report(severity_verbose, &source, &node->range, "%s", representations_of_node_tags[node->tag]);
+			if(token.tag == token_tag_semicolon) tokenize(&token, &caret);
 		}
 	}
 	else fail(0, 0, "missing source");
@@ -804,7 +1226,7 @@ static void *push_into_buffer(uint32 size, uint32 alignment, buffer *buffer)
 		buffer->commission_size += buffer->commission_rate;
 	}
 	buffer->mass += forward_alignment;
-	void *result = (void *)((uint64)buffer + buffer->mass);
+	void *result = buffer->base + buffer->mass;
 	zero_memory(result, size);
 	buffer->mass += size;
 	return result;

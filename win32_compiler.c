@@ -16,6 +16,11 @@ handle stdin_handle;
 handle stdout_handle;
 handle stderr_handle;
 
+_Noreturn void terminate(int status)
+{
+	_exit(status);
+}
+
 static void win32_display_last_error(void)
 {
 	DWORD last_error = GetLastError();
