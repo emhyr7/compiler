@@ -515,6 +515,122 @@ failed:
 	fail(caret->source, &token->range, failure_message);
 }
 
+typedef struct
+{
+	
+} node_tag;
+
+typedef struct node node;
+
+typedef struct
+{
+	const utf8 *value;
+	uint32 size;
+} identifier;
+
+typedef struct
+{
+	identifier identifier;
+	node *type;
+	node *assignment;
+	bit constant : 1;
+} value;
+
+typedef struct
+{
+	identifier identifier;
+	uint32 position;
+} label;
+
+typedef struct routine routine;
+
+typedef struct scope scope;
+
+struct scope
+{
+	scope *parent;
+	routine *owner;
+	value *values;
+	label *labels;
+	routine *routines;
+	node **statements;
+	uint32 values_count;
+	uint32 labels_count;
+	uint32 routines_count;
+	uint32 statements_count;
+};
+
+struct rountine
+{
+	identifier identifier;
+	value *parameters;
+	uint32 parameters_count;
+	uint32 arguments_count;
+	scope scope;
+};
+
+typedef struct
+{
+	uint64 value;
+} digital;
+
+typedef struct
+{
+	real64 value;
+} decimal;
+
+typedef struct
+{
+	utf8 *value;
+	uint32 size;
+} text;
+
+typedef struct
+{
+	node *other;
+} unary;
+
+typedef struct
+{
+	node *left, *right;
+} binary;
+
+typedef struct
+{
+	node *left, *right, *other;
+} ternary;
+
+struct node
+{
+	node_tag tag;
+	range range;
+	union
+	{
+		identifier identifier;
+		digital digital;
+		decimal decimal;
+		text text;
+		unary unary;
+		binary binary;
+		ternary ternary;
+		value *value;
+		label *label;
+		routine *routine;
+	} data[];
+};
+
+typedef struct module module;
+
+struct module
+{
+	value *values;
+	label *labels;
+	routine *routines;
+	uint32 values_count;
+	uint32 labels_count;
+	uint32 routines_count;
+};
+
 int start(int argc, utf8 *argv[])
 {
 	int status = 0;
