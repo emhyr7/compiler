@@ -236,7 +236,6 @@ static utf32 peek(uint8 *increment, const caret *caret)
 		utf8 bytes[4] = {};
 		for(uint8 i = 0; i < sizeof(bytes) / sizeof(bytes[0]); ++i)
 		{
-			
 			bytes[i] = caret->source->data[position];
 			if(++position >= caret->source->data_size) break;
 		}
@@ -325,7 +324,7 @@ _Noreturn static inline void fail(const source *source, const range *range, cons
 	UNREACHABLE();
 }
 
-token_tag tokenize(token *token, caret *caret)
+static token_tag tokenize(token *token, caret *caret)
 {
 	const utf8 *failure_message;
 
@@ -396,8 +395,9 @@ repeat:
 		case '\\':
 			advance(caret);
 			break;
-		case '\0':
+		case '\3':
 			failure_message = "unterminated text";
+			goto failed;
 		case '"':
 			goto text_terminated;
 		}
