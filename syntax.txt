@@ -1,0 +1,105 @@
+module
+	: {declaration}
+	;
+
+declaration
+	: value
+	| label
+	| routine
+	;
+
+value
+	: identifier `:` [expression] (`=` | `:`) expression
+	| identifier `:`  expression [(`=` | `:`) expression]
+	;
+
+label
+	: `.` identifier
+	;
+
+parameter
+	: value
+	| expression
+	;
+
+routine
+	: label `:` `(` [parameter {`,` parameter}] `)` [parameter {`,` parameter}] [scope]
+	;
+
+scope
+	: `{` {statement `;`} `}`
+	;
+
+statement
+	: expression
+	| declaration
+	| scope
+	;
+
+expression
+	: literal
+	| scoped
+	| unary
+	| binary
+	| ternary
+	;
+
+literal-expression
+	: digital
+	| decimal
+	| string
+	| reference
+	;
+
+scoped-expression
+	: subexpression : `(` expression `)` ;
+	;
+
+unary-expression
+	: negative    : `-` expression ;
+	| negation    : `!` expression ;
+	| not         : `~` expression ;
+	| address     : `@` expression ;
+	| indirection : `\` expression ;
+	| jump        : `^` expression ;
+	| inference   : `'` expression ;
+	;
+
+binary-expression
+	: list                      : expression `,`   expression ;
+	| resolution                : expression `.`   expression ;
+	| addition                  : expression `+`   expression ;
+	| subtraction               : expression `-`   expression ;
+	| multiplication            : expression `*`   expression ;
+	| division                  : expression `/`   expression ;
+	| remainder                 : expression `%`   expression ;
+	| not                       : expression `~`   expression ;
+	| and                       : expression `&`   expression ;
+	| or                        : expression `|`   expression ;
+	| xor                       : expression `^`   expression ;
+	| lsh                       : expression `<<`  expression ;
+	| rsh                       : expression `>>`  expression ;
+	| conjunction               : expression `&&`  expression ;
+	| disjunction               : expression `||`  expression ;
+	| equality                  : expression `==`  expression ;
+	| inequality                : expression `!=`  expression ;
+	| majority                  : expression `>`   expression ;
+	| minority                  : expression `<`   expression ;
+	| inclusive-majority        : expression `>=`  expression ;
+	| inclusive-minority        : expression `<=`  expression ;
+	| addition-assignment       : expression `+=`  expression ;
+	| subtraction-assignment    : expression `-=`  expression ;
+	| multiplication-assignment : expression `*=`  expression ;
+	| division-assignment       : expression `/=`  expression ;
+	| remainder-assignment      : expression `%=`  expression ;
+	| not-assignment            : expression `~=`  expression ;
+	| and-assignment            : expression `&=`  expression ;
+	| or-assignment             : expression `|=`  expression ;
+	| xor-assignment            : expression `^=`  expression ;
+	| lsh-assignment            : expression `<<=` expression ;
+	| rsh-assignment            : expression `>>=` expression ;
+	;
+
+ternary-expression
+	: condition : expression `?` expression [`:` expression]
+	;
