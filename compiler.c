@@ -554,6 +554,7 @@ typedef enum
 	NODE_TAG_MINORITY,
 	NODE_TAG_INCLUSIVE_MAJORITY,
 	NODE_TAG_INCLUSIVE_MINORITY,
+	
 	NODE_TAG_ASSIGNMENT,
 	NODE_TAG_ADDITION_ASSIGNMENT,
 	NODE_TAG_SUBTRACTION_ASSIGNMENT,
@@ -633,10 +634,12 @@ static const utf8 *representations_of_node_tags[] =
 	[NODE_TAG_SUBEXPRESSION]             = "subexpression",
 };
 
-typedef uint8 precedence;
+typedef uint8 Precedence;
 
-static precedence precedences[] =
+static Precedence precedences[] =
 {
+	[NODE_TAG_VALUE] = 100,
+
 	[NODE_TAG_RESOLUTION]                = 14,
 	
 	[NODE_TAG_INVOCATION]                = 13,
@@ -890,7 +893,7 @@ void parse_identifier(Identifier *Identifier, Token *token, Caret *caret)
 	get_token(token, caret);
 }
 
-Node *parse_expression(precedence other_precedence, Token *token, Caret *caret, Buffer *buffer)
+Node *parse_expression(Precedence other_precedence, Token *token, Caret *caret, Buffer *buffer)
 {
 	uint32 beginning = token->range.beginning;
 	uint32 row = token->range.row;
@@ -1002,7 +1005,8 @@ Node *parse_expression(precedence other_precedence, Token *token, Caret *caret, 
 		default:                                        right_tag = NODE_TAG_INVOCATION;                goto binary;
 		case TOKEN_TAG_QUESTION_MARK:                   right_tag = NODE_TAG_CONDITION;                 goto binary;
 		binary:
-			precedence right_precedence = precedences[right_tag];
+			if(right_tag >= NODE_TAG_ASSIGNMENT && right_tag <= NODE_TAG_RSH_ASSIGNMENT && other_precedence == precedences[NODE_TAG_VALUE]) goto finished;
+			Precedence right_precedence = precedences[right_tag];
 			if(right_precedence <= other_precedence) goto finished;
 			if(right_tag != NODE_TAG_INVOCATION) get_token(token, caret);
 			right = push_into_buffer(sizeof(Node) + (right_tag == NODE_TAG_CONDITION ? sizeof(Node *[3]) : sizeof(Node *[2])), alignof(Node), buffer);
@@ -1064,20 +1068,47 @@ void parse_scope(Scope *scope, Token *token, Caret *caret)
 	{
 		Node *node;
 		Token onsetting_token = *token;
-		Location onsetting_location = caret->location;
+		Caret onsetting_caret = *caret;
 		switch(onsetting_token.tag)
 		{
-			Identifier identifier;
-			
 		case TOKEN_TAG_NAME:
 			if(get_token(token, caret) == TOKEN_TAG_COLON)
 			{
-				UNIMPLEMENTED();
+				*token = onsetting_token;
+				*caret = onsetting_caret;
+				Value *value = push_into_buffer(sizeof(Value), alignof(Value), values);
+				++scope->values_count;
+				parse_identifier(&value->identifier, token, caret);
+				switch(get_token(token, caret))
+				{
+				case TOKEN_TAG_EQUAL_SIGN:
+				case TOKEN_TAG_COLON:
+					break;
+				default:
+					value->type = parse_expression(precedences[NODE_TAG_VALUE], token, caret, buffer);
+					break;
+				}
+				value->constant = 0;
+				switch(token->tag)
+				{
+				case TOKEN_TAG_COLON:
+					value->constant = 1;
+				case TOKEN_TAG_EQUAL_SIGN:
+					get_token(token, caret);
+					value->assignment = parse_expression(0, token, caret, buffer);
+					break;
+				default:
+					if(!value->type) fail(caret->source, &token->range, "untyped and uninitialized value");
+					break;
+				}
+				node = push_into_buffer(sizeof(Node) + sizeof(Value *), alignof(Node), buffer);
+				node->tag = NODE_TAG_VALUE;
+				node->data->value = value;
 			}
 			else
 			{
 				*token = onsetting_token;
-				caret->location = onsetting_location;
+				*caret = onsetting_caret;
 				goto expression;
 			}
 			break;
@@ -1086,6 +1117,7 @@ void parse_scope(Scope *scope, Token *token, Caret *caret)
 			UNIMPLEMENTED();
 			if(get_token(token, caret) == TOKEN_TAG_NAME)
 			{
+				Identifier identifier;
 				parse_identifier(&identifier, token, caret);
 				if(token->tag == TOKEN_TAG_COLON)
 				{
@@ -1150,7 +1182,7 @@ void dump(Node *);
 
 void dump_value(Value *value)
 {
-	print("{\"identifier\":%.*s", value->identifier.size, value->identifier.value);
+	print("{\"identifier\":\"%.*s\"", value->identifier.size, value->identifier.value);
 	print(",\"type\":"), dump(value->type);
 	print(",\"assignment\":"), dump(value->assignment);
 	print(",\"constant\":%i}", value->constant);
