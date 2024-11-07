@@ -30,6 +30,7 @@ uint32 get_forward_alignment(uint64 address, uint32 alignment);
 
 typedef struct
 {
+	uint8 *memory;
 	uint32 reservation_size;
 	uint32 commission_rate;
 	uint32 commission_size;
@@ -1061,13 +1062,12 @@ void parse_scope(Scope *scope, Token *token, Caret *caret)
 	get_token(token, caret);
 	for(;;)
 	{
+		Node *node;
 		Token onsetting_token = *token;
 		Location onsetting_location = caret->location;
 		switch(onsetting_token.tag)
 		{
 			Identifier identifier;
-			Node **statement;
-			Node *node;
 			
 		case TOKEN_TAG_NAME:
 			if(get_token(token, caret) == TOKEN_TAG_COLON)
@@ -1111,25 +1111,23 @@ void parse_scope(Scope *scope, Token *token, Caret *caret)
 			node = push_into_buffer(sizeof(Node) + sizeof(Scope), alignof(Node), buffer);
 			node->tag = NODE_TAG_SCOPE;
 			parse_scope(&node->data->scope, token, caret);
-			statement = push_into_buffer(sizeof(Node *), alignof(Node *), statements);
-			*statement = node;
-			++scope->statements_count;
 			break;
 
 		default:
 		expression:
 			node = parse_expression(0, token, caret, buffer);
-			statement = push_into_buffer(sizeof(Node *), alignof(Node *), statements);
-			*statement = node;
-			++scope->statements_count;
 			break;
 	
 		case TOKEN_TAG_SEMICOLON:
 			get_token(token, caret);
-			break;
+			continue;
 		case TOKEN_TAG_RIGHT_CURLY_BRACKET:
 			goto finished;
 		}
+
+		Node **statement = push_into_buffer(sizeof(Node *), alignof(Node *), statements);
+		*statement = node;
+		++scope->statements_count;
 	}
 
 finished:
@@ -1499,10 +1497,11 @@ static Buffer *allocate_buffer(uint32 reservation_size, uint32 commission_rate)
 	commission_rate += get_forward_alignment(commission_rate, system_page_size);
 	Buffer *buffer = reserve_memory(reservation_size);
 	commit_memory(buffer, commission_rate);
+	buffer->memory           = (uint8 *)buffer;
 	buffer->reservation_size = reservation_size;
 	buffer->commission_rate  = commission_rate;
 	buffer->commission_size  = commission_rate;
-	buffer->mass             = sizeof(buffer);
+	buffer->mass             = sizeof(Buffer);
 	return buffer;
 }
 
@@ -1527,7 +1526,7 @@ static void *push_into_buffer(uint32 size, uint32 alignment, Buffer *buffer)
 		buffer->commission_size += buffer->commission_rate;
 	}
 	buffer->mass += forward_alignment;
-	void *result = buffer->base + buffer->mass;
+	void *result = buffer->memory + buffer->mass;
 	zero_memory(result, size);
 	buffer->mass += size;
 	return result;
