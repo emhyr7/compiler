@@ -1049,6 +1049,92 @@ struct module
 	uint32 routines_count;
 };
 
+void dump(node *);
+
+void dump_value(value *value)
+{
+	print("{\"identifier\":%.*s", value->identifier.size, value->identifier.value);
+	print(",\"type\":"), dump(value->type);
+	print(",\"assignment\":"), dump(value->assignment);
+	print(",\"constant\":%i}", value->constant);
+}
+
+void dump_label(label *label)
+{
+	print("{\"identifier\":%.*s", label->identifier.size, label->identifier.value);
+	print(",\"position\":%i}", label->position);
+}
+
+void dump_scope(scope *scope);
+
+void dump_routine(routine *routine)
+{
+	print("{\"identifier\":%.*s", routine->identifier.size, routine->identifier.value);
+	print(",\"parameters\":[");
+	if(routine->parameters_count)
+	{
+		for(uint32 i = 0; i < routine->parameters_count - 1; ++i)
+		{
+			value *parameter = routine->parameters + i;
+			dump_value(parameter);
+			print(",");
+		}
+		dump_value(routine->parameters + routine->parameters_count - 1);
+	}
+	print("],\"scope\":");
+	dump_scope(&routine->scope);
+}
+
+void dump_scope(scope *scope)
+{
+	print("{");
+	print("\"values\":[");
+	if(scope->values_count)
+	{
+		for(uint32 i = 0; i < scope->values_count - 1; ++i)
+		{
+			value *value = scope->values + i;
+			dump_value(value);
+			print(",");
+		}
+		dump_value(scope->values + scope->values_count - 1);
+	}
+	print("],\"labels\":[");
+	if(scope->labels_count)
+	{
+		for(uint32 i = 0; i < scope->labels_count - 1; ++i)
+		{
+			label *label = scope->labels + i;
+			dump_label(label);
+			print(",");
+		}
+		dump_label(scope->labels + scope->labels_count - 1);
+	}
+	print("],\"routines\":[");
+	if(scope->routines_count)
+	{
+		for(uint32 i = 0; i < scope->routines_count - 1; ++i)
+		{
+			routine *routine = scope->routines + i;
+			dump_routine(routine);
+			print(",");
+		}
+		dump_routine(scope->routines + scope->routines_count - 1);
+	}
+	print("],\"statements\":[");
+	if(scope->statements_count)
+	{
+		for(uint32 i = 0; i < scope->statements_count - 1; ++i)
+		{
+			node *statement = scope->statements[i];
+			dump(statement);
+			print(",");
+		}
+		dump(scope->statements[scope->statements_count - 1]);
+	}
+	print("]}");
+}
+
 void dump(node *node)
 {
 	print("{");
@@ -1120,41 +1206,18 @@ void dump(node *node)
 			print("]");
 			break;
 
-#if 0
 		case node_tag_value:
-			print("{");
-			print("\"identifier:\": %.*s", node->data->value->identifier.size, node->data->value->identifier.value);
-			print(",\"type\":"), dump(node->data->value->type);
-			print(",\"assignment\":"), dump(node->data->value->assignment);
-			print(",\"constant\":%i", node->data->value->constant);
-			print("}");
+			dump_value(node->data->value);
 			break;
 		case node_tag_label:
-			print("{");
-			print("\"identifier:\": %.*s,", node->data->label->identifier.size, node->data->label->identifier.value);
-			print(",\"position\":%i", node->data->label->position);
-			print("}");
+			dump_label(node->data->label);
 			break;
 		case node_tag_routine:
-			print("{");
-			print("\"identifier:\": %.*s", node->data->value->identifier.size, node->data->value->identifier.value);
-			
-			print("}");
+			dump_routine(node->data->routine);
 			break;
 		case node_tag_scope:
-			print("{");
-			print("\"values:\"");
-			{
-				print("[");
-				for(uint32 i = 0; i < node->data->scope.values_count; ++i)
-				{
-					
-				}
-				print("]");
-			}
-			print("}");
+			dump_scope(&node->data->scope);
 			break;
-#endif
 
 		case node_tag_integer:
 			print("%lu", node->data->integer.value);
