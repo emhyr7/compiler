@@ -5,6 +5,6 @@ a + b * c;
 !(a + b) * a ? b ! c;
 !(a + b) * (a ? b ! c);
 !a.b;
-"string\n";
+"string\t";
 21;
 7.14;

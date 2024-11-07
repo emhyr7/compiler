@@ -635,6 +635,7 @@ typedef uint8 precedence;
 static precedence precedences[] =
 {
 	[node_tag_resolution]                = 14,
+	
 	[node_tag_invocation]                = 13,
 	[node_tag_negative]                  = 13,
 	[node_tag_negation]                  = 13,
@@ -643,24 +644,35 @@ static precedence precedences[] =
 	[node_tag_indirection]               = 13,
 	[node_tag_jump]                      = 13,
 	[node_tag_inference]                 = 13,
+	
 	[node_tag_multiplication]            = 12,
 	[node_tag_division]                  = 12,
 	[node_tag_remainder]                 = 12,
+	
 	[node_tag_addition]                  = 11,
 	[node_tag_subtraction]               = 11,
+	
 	[node_tag_lsh]                       = 10,
 	[node_tag_rsh]                       = 10,
+	
 	[node_tag_majority]                  = 9,
 	[node_tag_minority]                  = 9,
 	[node_tag_inclusive_majority]        = 9,
 	[node_tag_inclusive_minority]        = 9,
+	
 	[node_tag_equality]                  = 8,
 	[node_tag_inequality]                = 8,
+	
 	[node_tag_and]                       = 7,
+	
 	[node_tag_xor]                       = 6,
+	
 	[node_tag_or]                        = 5,
+	
 	[node_tag_conjunction]               = 4,
+	
 	[node_tag_disjunction]               = 3,
+	
 	[node_tag_condition]                 = 2,
 	[node_tag_assignment]                = 2,
 	[node_tag_addition_assignment]       = 2,
@@ -673,6 +685,7 @@ static precedence precedences[] =
 	[node_tag_xor_assignment]            = 2,
 	[node_tag_lsh_assignment]            = 2,
 	[node_tag_rsh_assignment]            = 2,
+	
 	[node_tag_list]                      = 1,
 };
 
@@ -716,7 +729,7 @@ struct scope
 	uint32 statements_count;
 };
 
-struct rountine
+struct routine
 {
 	identifier identifier;
 	value *parameters;
@@ -741,21 +754,6 @@ typedef struct
 	uint32 size;
 } string;
 
-typedef struct
-{
-	node *other;
-} unary;
-
-typedef struct
-{
-	node *left, *right;
-} binary;
-
-typedef struct
-{
-	node *left, *right, *other;
-} ternary;
-
 struct node
 {
 	node_tag tag;
@@ -766,12 +764,13 @@ struct node
 		integer integer;
 		real real;
 		string string;
-		unary unary;
-		binary binary;
-		ternary ternary;
+		node *unary;
+		node *binary[2];
+		node *ternary[3];
 		value *value;
 		label *label;
 		routine *routine;
+		scope scope;
 	} data[];
 };
 
@@ -920,10 +919,10 @@ node *parse_expression(precedence other_precedence, token *token, caret *caret, 
 		break;
 
 	case token_tag_left_parenthesis:
-		left = push_into_buffer(sizeof(node) + sizeof(unary), alignof(node), buffer);
+		left = push_into_buffer(sizeof(node) + sizeof(node *), alignof(node), buffer);
 		left->tag = node_tag_subexpression;
 		tokenize(token, caret);
-		left->data->unary.other = parse_expression(0, token, caret, buffer);
+		left->data->unary = parse_expression(0, token, caret, buffer);
 		if(token->tag == token_tag_right_parenthesis) tokenize(token, caret);
 		else fail(caret->source, &token->range, "unterminated subexpression; expected `)`");
 		break;
@@ -937,10 +936,10 @@ node *parse_expression(precedence other_precedence, token *token, caret *caret, 
 	case token_tag_circumflex_accent: left_tag = node_tag_jump;        goto unary;
 	case token_tag_apostrophe:        left_tag = node_tag_inference;   goto unary;
 	unary:
-		left = push_into_buffer(sizeof(node) + sizeof(unary), alignof(node), buffer);
+		left = push_into_buffer(sizeof(node) + sizeof(node *), alignof(node), buffer);
 		left->tag = left_tag;
 		tokenize(token, caret);
-		left->data->unary.other = parse_expression(precedences[left_tag], token, caret, buffer);
+		left->data->unary = parse_expression(precedences[left_tag], token, caret, buffer);
 		break;
 
 	case token_tag_colon:
@@ -1001,18 +1000,18 @@ node *parse_expression(precedence other_precedence, token *token, caret *caret, 
 			precedence right_precedence = precedences[right_tag];
 			if(right_precedence <= other_precedence) goto finished;
 			if(right_tag != node_tag_invocation) tokenize(token, caret);
-			right = push_into_buffer(sizeof(node) + (right_tag == node_tag_condition ? sizeof(ternary) : sizeof(binary)), alignof(node), buffer);
+			right = push_into_buffer(sizeof(node) + (right_tag == node_tag_condition ? sizeof(node *[3]) : sizeof(node *[2])), alignof(node), buffer);
 			right->tag = right_tag;
-			right->data->binary.left = left;
-			right->data->binary.right = parse_expression(right_tag == node_tag_condition ? 0 : right_precedence, token, caret, buffer);
+			right->data->binary[0] = left;
+			right->data->binary[1] = parse_expression(right_tag == node_tag_condition ? 0 : right_precedence, token, caret, buffer);
 			if(right_tag == node_tag_condition)
 			{
 				if(token->tag == token_tag_exclamation_mark)
 				{
 					tokenize(token, caret);
-					right->data->ternary.other = parse_expression(right_precedence, token, caret, buffer);
+					right->data->ternary[2] = parse_expression(right_precedence, token, caret, buffer);
 				}
-				else right->data->ternary.other = 0;
+				else right->data->ternary[2] = 0;
 			}
 			break;
 			
@@ -1020,6 +1019,7 @@ node *parse_expression(precedence other_precedence, token *token, caret *caret, 
 		case token_tag_semicolon:
 		case token_tag_right_parenthesis:
 		case token_tag_right_curly_bracket:
+		case token_tag_exclamation_mark:
 			goto finished;
 
 		case token_tag_etx:
@@ -1049,6 +1049,134 @@ struct module
 	uint32 routines_count;
 };
 
+void dump(node *node)
+{
+	print("{");
+	if(node)
+	{
+		const utf8 *representation = representations_of_node_tags[node->tag];
+
+		print("\"%s\":", representation);
+	
+		switch(node->tag)
+		{
+		case node_tag_subexpression:
+		case node_tag_negative:
+		case node_tag_negation:
+		case node_tag_not:
+		case node_tag_address:
+		case node_tag_indirection:
+		case node_tag_jump:
+		case node_tag_inference:
+			dump(node->data->unary);
+			break;
+	
+		case node_tag_invocation:
+		case node_tag_list:
+		case node_tag_resolution:
+		case node_tag_addition:
+		case node_tag_subtraction:
+		case node_tag_multiplication:
+		case node_tag_division:
+		case node_tag_remainder:
+		case node_tag_and:
+		case node_tag_or:
+		case node_tag_xor:
+		case node_tag_lsh:
+		case node_tag_rsh:
+		case node_tag_conjunction:
+		case node_tag_disjunction:
+		case node_tag_equality:
+		case node_tag_inequality:
+		case node_tag_majority:
+		case node_tag_minority:
+		case node_tag_inclusive_majority:
+		case node_tag_inclusive_minority:
+		case node_tag_assignment:
+		case node_tag_addition_assignment:
+		case node_tag_subtraction_assignment:
+		case node_tag_multiplication_assignment:
+		case node_tag_division_assignment:
+		case node_tag_remainder_assignment:
+		case node_tag_and_assignment:
+		case node_tag_or_assignment:
+		case node_tag_xor_assignment:
+		case node_tag_lsh_assignment:
+		case node_tag_rsh_assignment:
+			print("[");
+			dump(node->data->binary[0]);
+			print(",");
+			dump(node->data->binary[1]);
+			print("]");
+			break;
+	
+		case node_tag_condition:
+			print("[");
+			dump(node->data->ternary[0]);
+			print(",");
+			dump(node->data->ternary[1]);
+			print(",");
+			dump(node->data->ternary[2]);
+			print("]");
+			break;
+
+#if 0
+		case node_tag_value:
+			print("{");
+			print("\"identifier:\": %.*s", node->data->value->identifier.size, node->data->value->identifier.value);
+			print(",\"type\":"), dump(node->data->value->type);
+			print(",\"assignment\":"), dump(node->data->value->assignment);
+			print(",\"constant\":%i", node->data->value->constant);
+			print("}");
+			break;
+		case node_tag_label:
+			print("{");
+			print("\"identifier:\": %.*s,", node->data->label->identifier.size, node->data->label->identifier.value);
+			print(",\"position\":%i", node->data->label->position);
+			print("}");
+			break;
+		case node_tag_routine:
+			print("{");
+			print("\"identifier:\": %.*s", node->data->value->identifier.size, node->data->value->identifier.value);
+			
+			print("}");
+			break;
+		case node_tag_scope:
+			print("{");
+			print("\"values:\"");
+			{
+				print("[");
+				for(uint32 i = 0; i < node->data->scope.values_count; ++i)
+				{
+					
+				}
+				print("]");
+			}
+			print("}");
+			break;
+#endif
+
+		case node_tag_integer:
+			print("%lu", node->data->integer.value);
+			break;
+		case node_tag_real:
+			print("%f", node->data->real.value);
+			break;
+		case node_tag_string:
+			print("\"%.*s\"", node->data->string.size, node->data->string.value);
+			break;
+		case node_tag_reference:
+			print("\"%.*s\"", node->data->identifier.size, node->data->identifier.value);
+			break;
+
+		default:
+			ASSERT(!"UNIMPLEMENTED");
+			UNREACHABLE();
+		}
+	}
+	print("}");
+}
+
 int start(int argc, utf8 *argv[])
 {
 	int status = 0;
@@ -1061,12 +1189,17 @@ int start(int argc, utf8 *argv[])
 		token token;
 		buffer *buffer = allocate_buffer(GIBIBYTE(1), system_page_size);
 		tokenize(&token, &caret);
+		print("{\"statements\":[");
 		while(token.tag != token_tag_etx)
 		{
 			node *node = parse_expression(0, &token, &caret, buffer);
-			report(severity_verbose, &source, &node->range, "%s", representations_of_node_tags[node->tag]);
+			dump(node);
+			print(",\n");
+			//report(severity_verbose, &source, &node->range, "%s", representations_of_node_tags[node->tag]);
 			if(token.tag == token_tag_semicolon) tokenize(&token, &caret);
 		}
+		print("]}");
+		
 	}
 	else fail(0, 0, "missing source");
 	return status;
