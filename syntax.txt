@@ -23,7 +23,7 @@ parameter
 	;
 
 routine
-	: label `:` `(` [parameter {`,` parameter}] `)` [parameter {`,` parameter}] [scope]
+	: label `:` [`(` parameter {`,` parameter} `)`] [parameter {`,` parameter}] [scope]
 	;
 
 scope
