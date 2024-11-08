@@ -41,7 +41,7 @@ int main(int argc, char *argv[])
 	stdin_handle  = GetStdHandle(STD_INPUT_HANDLE);
 	stdout_handle = GetStdHandle(STD_OUTPUT_HANDLE);
 	stderr_handle = GetStdHandle(STD_ERROR_HANDLE);
-	WIN32_ASSERT(SetConsoleOutputCP(65001)); // enable UTF-8 encoded printing
+	WIN32_ASSERT(SetConsoleOutputCP(65001)); // NOTE(Emhyr): enable UTF-8 encoded printing
 
 	return start(argc, argv);
 }

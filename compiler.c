@@ -6,8 +6,6 @@
 #define MEBIBYTE(x) (KIBIBYTE(x) << 10)
 #define GIBIBYTE(x) (MEBIBYTE(x) << 10)
 
-_Noreturn void terminate(int);
-
 uint32 format_v(utf8 *buffer, uint32 size, const utf8 *format, vargs vargs);
 uint32 format(utf8 *buffer, uint32 size, const utf8 *format, ...);
 void print_v(const utf8 *format, vargs vargs);
@@ -85,6 +83,7 @@ typedef struct
 	uint8 increment;
 } Caret;
 
+// NOTE(Emhyr): didn't feel like using X macros :/. fingers hurt
 typedef enum : uint8
 {
 	TOKEN_TAG_ETX                  = '\3',
@@ -131,6 +130,7 @@ typedef enum : uint8
 	TOKEN_TAG_ASTERISK_EQUAL_SIGN,
 	TOKEN_TAG_PLUS_SIGN_EQUAL_SIGN,
 	TOKEN_TAG_HYPHEN_MINUS_EQUAL_SIGN,
+	TOKEN_TAG_FULL_STOP_2,
 	TOKEN_TAG_SLASH_EQUAL_SIGN,
 	TOKEN_TAG_LESS_THAN_SIGN_EQUAL_SIGN,
 	TOKEN_TAG_LESS_THAN_SIGN_2,
@@ -190,6 +190,7 @@ static utf8 *representations_of_token_tags[] =
 	[TOKEN_TAG_ASTERISK_EQUAL_SIGN]            = "`*=`",
 	[TOKEN_TAG_PLUS_SIGN_EQUAL_SIGN]           = "`+=`",
 	[TOKEN_TAG_HYPHEN_MINUS_EQUAL_SIGN]        = "`-=`",
+	[TOKEN_TAG_FULL_STOP_2]                    = "`..`",
 	[TOKEN_TAG_SLASH_EQUAL_SIGN]               = "`/=`",
 	[TOKEN_TAG_LESS_THAN_SIGN_EQUAL_SIGN]      = "`<=`",
 	[TOKEN_TAG_LESS_THAN_SIGN_2]               = "`<<`",
@@ -438,6 +439,7 @@ repeat:
 			case '*': token->tag = TOKEN_TAG_ASTERISK_EQUAL_SIGN;          break;
 			case '+': token->tag = TOKEN_TAG_PLUS_SIGN_EQUAL_SIGN;         break;
 			case '-': token->tag = TOKEN_TAG_HYPHEN_MINUS_EQUAL_SIGN;      break;
+			case '.': token->tag = TOKEN_TAG_FULL_STOP_2;                  break;
 			case '/': token->tag = TOKEN_TAG_SLASH_EQUAL_SIGN;             break;
 			case '<': token->tag = TOKEN_TAG_LESS_THAN_SIGN_EQUAL_SIGN;    break;
 			case '=': token->tag = TOKEN_TAG_EQUAL_SIGN_2;                 break;
@@ -535,6 +537,7 @@ typedef enum
 	NODE_TAG_INFERENCE,
 	
 	NODE_TAG_LIST,
+	NODE_TAG_RANGE,
 	NODE_TAG_RESOLUTION,
 	NODE_TAG_ADDITION,
 	NODE_TAG_SUBTRACTION,
@@ -580,6 +583,7 @@ typedef enum
 	NODE_TAG_REFERENCE,
 
 	NODE_TAG_SUBEXPRESSION,
+	NODE_TAG_STRUCTURE,
 } Node_Tag;
 
 static const utf8 *representations_of_node_tags[] =
@@ -593,6 +597,7 @@ static const utf8 *representations_of_node_tags[] =
 	[NODE_TAG_JUMP]                      = "jump",
 	[NODE_TAG_INFERENCE]                 = "inference",
 	[NODE_TAG_LIST]                      = "list",
+	[NODE_TAG_RANGE]                     = "range",
 	[NODE_TAG_RESOLUTION]                = "resolution",
 	[NODE_TAG_ADDITION]                  = "addition",
 	[NODE_TAG_SUBTRACTION]               = "subtraction",
@@ -632,6 +637,7 @@ static const utf8 *representations_of_node_tags[] =
 	[NODE_TAG_STRING]                    = "string",
 	[NODE_TAG_REFERENCE]                 = "reference",
 	[NODE_TAG_SUBEXPRESSION]             = "subexpression",
+	[NODE_TAG_STRUCTURE]                 = "structure",
 };
 
 typedef uint8 Precedence;
@@ -650,6 +656,7 @@ static Precedence precedences[] =
 	[NODE_TAG_INDIRECTION]               = 13,
 	[NODE_TAG_JUMP]                      = 13,
 	[NODE_TAG_INFERENCE]                 = 13,
+	[NODE_TAG_RANGE]                     = 13,
 	
 	[NODE_TAG_MULTIPLICATION]            = 12,
 	[NODE_TAG_DIVISION]                  = 12,
@@ -776,8 +783,6 @@ struct Node
 		Node *binary[2];
 		Node *ternary[3];
 		Value *value;
-		Label *label;
-		Routine *routine;
 		Scope scope;
 	} data[];
 };
@@ -927,12 +932,13 @@ Node *parse_expression(Precedence other_precedence, Token *token, Caret *caret, 
 		break;
 
 	case TOKEN_TAG_LEFT_PARENTHESIS:
+	case TOKEN_TAG_LEFT_SQUARE_BRACKET:
 		left = push_into_buffer(sizeof(Node) + sizeof(Node *), alignof(Node), buffer);
-		left->tag = NODE_TAG_SUBEXPRESSION;
+		left->tag = token->tag == TOKEN_TAG_LEFT_PARENTHESIS ? NODE_TAG_SUBEXPRESSION : NODE_TAG_STRUCTURE;
 		get_token(token, caret);
 		left->data->unary = parse_expression(0, token, caret, buffer);
-		if(token->tag == TOKEN_TAG_RIGHT_PARENTHESIS) get_token(token, caret);
-		else fail(caret->source, &token->range, "unterminated subexpression; expected `)`");
+		if(token->tag == (left->tag == NODE_TAG_SUBEXPRESSION ? TOKEN_TAG_RIGHT_PARENTHESIS : TOKEN_TAG_RIGHT_SQUARE_BRACKET)) get_token(token, caret);
+		else fail(caret->source, &token->range, "unterminated scope; expected `%c`", left->tag == NODE_TAG_SUBEXPRESSION ? ')' : ']');
 		break;
 
 		Node_Tag left_tag;
@@ -972,6 +978,7 @@ Node *parse_expression(Precedence other_precedence, Token *token, Caret *caret, 
 		{
 			Node_Tag right_tag;
 		case TOKEN_TAG_COMMA:                           right_tag = NODE_TAG_LIST;                      goto binary;
+		case TOKEN_TAG_FULL_STOP_2:                     right_tag = NODE_TAG_RANGE;                     goto binary;
 		case TOKEN_TAG_FULL_STOP:                       right_tag = NODE_TAG_RESOLUTION;                goto binary;
 		case TOKEN_TAG_PLUS_SIGN:                       right_tag = NODE_TAG_ADDITION;                  goto binary;
 		case TOKEN_TAG_HYPHEN_MINUS:                    right_tag = NODE_TAG_SUBTRACTION;               goto binary;
@@ -1005,7 +1012,7 @@ Node *parse_expression(Precedence other_precedence, Token *token, Caret *caret, 
 		default:                                        right_tag = NODE_TAG_INVOCATION;                goto binary;
 		case TOKEN_TAG_QUESTION_MARK:                   right_tag = NODE_TAG_CONDITION;                 goto binary;
 		binary:
-			if(right_tag >= NODE_TAG_ASSIGNMENT && right_tag <= NODE_TAG_RSH_ASSIGNMENT && other_precedence == precedences[NODE_TAG_VALUE]) goto finished;
+			if(other_precedence == precedences[NODE_TAG_VALUE] && (right_tag >= NODE_TAG_ASSIGNMENT && right_tag <= NODE_TAG_RSH_ASSIGNMENT || right_tag == NODE_TAG_LIST)) goto finished;
 			Precedence right_precedence = precedences[right_tag];
 			if(right_precedence <= other_precedence) goto finished;
 			if(right_tag != NODE_TAG_INVOCATION) get_token(token, caret);
@@ -1046,6 +1053,34 @@ finished:
 	return left;
 }
 
+void parse_value(Value *value, Token *token, Caret *caret, Buffer *buffer)
+{
+	ASSERT(token->tag == TOKEN_TAG_NAME);
+	parse_identifier(&value->identifier, token, caret);
+	switch(get_token(token, caret))
+	{
+	case TOKEN_TAG_EQUAL_SIGN:
+	case TOKEN_TAG_COLON:
+		break;
+	default:
+		value->type = parse_expression(precedences[NODE_TAG_VALUE], token, caret, buffer);
+		break;
+	}
+	value->constant = 0;
+	switch(token->tag)
+	{
+	case TOKEN_TAG_COLON:
+		value->constant = 1;
+	case TOKEN_TAG_EQUAL_SIGN:
+		get_token(token, caret);
+		value->assignment = parse_expression(0, token, caret, buffer);
+		break;
+	default:
+		if(!value->type) fail(caret->source, &token->range, "untyped and uninitialized value");
+		break;
+	}
+}
+
 void parse_scope(Scope *scope, Token *token, Caret *caret)
 {
 	ASSERT(token->tag == TOKEN_TAG_LEFT_CURLY_BRACKET);
@@ -1078,32 +1113,11 @@ void parse_scope(Scope *scope, Token *token, Caret *caret)
 				*caret = onsetting_caret;
 				Value *value = push_into_buffer(sizeof(Value), alignof(Value), values);
 				++scope->values_count;
-				parse_identifier(&value->identifier, token, caret);
-				switch(get_token(token, caret))
-				{
-				case TOKEN_TAG_EQUAL_SIGN:
-				case TOKEN_TAG_COLON:
-					break;
-				default:
-					value->type = parse_expression(precedences[NODE_TAG_VALUE], token, caret, buffer);
-					break;
-				}
-				value->constant = 0;
-				switch(token->tag)
-				{
-				case TOKEN_TAG_COLON:
-					value->constant = 1;
-				case TOKEN_TAG_EQUAL_SIGN:
-					get_token(token, caret);
-					value->assignment = parse_expression(0, token, caret, buffer);
-					break;
-				default:
-					if(!value->type) fail(caret->source, &token->range, "untyped and uninitialized value");
-					break;
-				}
+				parse_value(value, token, caret, buffer);
 				node = push_into_buffer(sizeof(Node) + sizeof(Value *), alignof(Node), buffer);
 				node->tag = NODE_TAG_VALUE;
 				node->data->value = value;
+				break;
 			}
 			else
 			{
@@ -1114,7 +1128,6 @@ void parse_scope(Scope *scope, Token *token, Caret *caret)
 			break;
 	
 		case TOKEN_TAG_FULL_STOP:
-			UNIMPLEMENTED();
 			if(get_token(token, caret) == TOKEN_TAG_NAME)
 			{
 				Identifier identifier;
@@ -1124,20 +1137,56 @@ void parse_scope(Scope *scope, Token *token, Caret *caret)
 					Routine *routine = push_into_buffer(sizeof(Routine), alignof(Routine), routines);
 					++scope->routines_count;
 					routine->identifier = identifier;
+					Buffer *parameters = 0;
+					routine->parameters_count = 0;
 					if(get_token(token, caret) == TOKEN_TAG_LEFT_PARENTHESIS)
 					{
+						parameters = allocate_buffer(MEBIBYTE(1), system_page_size);
+						for(;;)
+						{
+							Value *value = 0;
+							switch(get_token(token, caret))
+							{
+							case TOKEN_TAG_NAME:
+								value = push_into_buffer(sizeof(Value), alignof(Value), parameters);
+								parse_value(value, token, caret, buffer);
+								if(token->tag == TOKEN_TAG_COMMA) get_token(token, caret);
+								break;
+							case TOKEN_TAG_RIGHT_PARENTHESIS:
+								break;
+							default:
+								fail(caret->source, &token->range, "unexpected token; expected name, or `)`");
+							}
+						}
+						get_token(token, caret);
+					}
+					routine->arguments_count = routine->parameters_count;
+					if(token->tag == TOKEN_TAG_NAME)
+					{
+						if(!parameters) parameters = allocate_buffer(MEBIBYTE(1), system_page_size);
+						for(;;)
+						{
+							Identifier identifier;
+							parse_identifier(&identifier, token, caret);
+							if(token->tag == TOKEN_TAG_COLON)
+							{
+							}
+							else
+							{
+							}
+						}
 					}
 				}
 				else
 				{
-					Label *label = push_into_buffer(sizeof(Label), alignof(Label), labels);
+					Label *label = push_into_buffer(sizeof(Node) + sizeof(Label), alignof(Label), labels);
 					++scope->labels_count;
 					label->identifier = identifier;
-					label->position = scope->labels_count;
+					label->position = scope->statements_count;
 				}
 			}
 			else fail(caret->source, &token->range, "unexpected token; expected name");
-			break;
+			continue;
 
 		case TOKEN_TAG_LEFT_CURLY_BRACKET:
 			node = push_into_buffer(sizeof(Node) + sizeof(Scope), alignof(Node), buffer);
@@ -1337,12 +1386,6 @@ void dump(Node *node)
 
 		case NODE_TAG_VALUE:
 			dump_value(node->data->value);
-			break;
-		case NODE_TAG_LABEL:
-			dump_label(node->data->label);
-			break;
-		case NODE_TAG_ROUTINE:
-			dump_routine(node->data->routine);
 			break;
 		case NODE_TAG_SCOPE:
 			dump_scope(&node->data->scope);

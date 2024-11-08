@@ -1,0 +1,93 @@
+uint8 : 0xff;
+uint16: 0xffff;
+uint32: 0xffffffff;
+uint64: 0xffffffffffffffff;
+
+sint8 : -(uint8  >> 1);
+sint16: -(uint16 >> 1);
+sint32: -(uint32 >> 1);
+sint64: -(uint64 >> 1);
+
+real32: 1.;
+real64: #f64 1.;
+
+# pointers #####################################################################
+
+bytes: @uint8;
+
+# arrays #######################################################################
+
+array  : [uint8];    # an array of bytes
+array64: [uint8].63; # an array of 64 bytes
+
+# types ########################################################################
+
+vec2: [x: real32, y: real32];
+
+# statement ####################################################################
+
+#statement if $e $b
+{
+	!($e) ? ^b;
+	{
+		$b;
+	} .b;
+}
+
+#statement if $e $b else $o
+{
+	!($e) ? ^b;
+	{
+		$b;
+		^c;
+	} .b
+	{
+		$o
+	} .c
+}
+
+#statement while $e $b
+{
+	.a if !($e); ^b;
+	{
+		$b;
+		^a;
+	} .b
+}
+
+#statement for $s $e $b
+{
+	$s;
+	while $e; $b;
+}
+
+#statement return $e
+{
+	^^ $e;
+}
+
+#statement assert $e
+{
+	if !($e); fprintf(#stringify $e, 'file = 2);
+}
+
+# routines #####################################################################
+
+.test_byte: (a: @byte, b: @byte)
+	i: long = 1
+{
+	if \a != \b; return 0;
+}
+
+.test: (f: @(@[byte], @[byte]) long, A: @[byte], n: long, b: @byte)
+	i: long = 0
+{
+	for x: long; i < n && (x = f(@A.i, b)); i += x;
+}
+
+.start:
+{
+	bytes: [byte..32] = [0..5, 7, 0..25];
+	byte : byte       = 7;
+	assert test(@test_byte, @bytes, count_of(bytes), @byte) == 7;
+}

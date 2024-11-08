@@ -51,4 +51,6 @@ uint64 get_size_of_file(handle file);
 uint32 read_from_file(void *buffer, uint32 size, handle file);
 uint32 write_into_file(const void *buffer, uint32 size, handle file);
 
+_Noreturn void terminate(int);
+
 #endif

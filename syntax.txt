@@ -53,6 +53,7 @@ literal-expression
 
 scoped-expression
 	: subexpression : `(` expression `)` ;
+	| structure     : `[` expression `]` ;
 	;
 
 unary-expression
@@ -68,6 +69,7 @@ unary-expression
 
 binary-expression
 	: list                      : expression `,`   expression ;
+	| range                     : expression `..`  expression ;
 	| resolution                : expression `.`   expression ;
 	| addition                  : expression `+`   expression ;
 	| subtraction               : expression `-`   expression ;

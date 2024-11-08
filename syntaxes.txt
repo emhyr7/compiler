@@ -3,6 +3,8 @@
 	b: bar : 21;
 	c :: 14;
 
+	a b;
+
 	a ? b;
 	a ? b ! c;
 	a + b * c;
