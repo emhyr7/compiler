@@ -1,9 +1,12 @@
 {
+	position: [0, 0];
+
+	foo:  1;
+	bar: -1;
+	
 	a: foo = 7;
 	b: bar : 21;
 	c :: 14;
-
-	a b;
 
 	a ? b;
 	a ? b ! c;
@@ -17,4 +20,12 @@
 		21;
 	}
 	7.14;
+
+	.label
+
+	.sub: (a: foo, b: foo : 0) r: bar {
+		r = a - b;
+		return;
+	}
+	r := sub(a, b);
 }

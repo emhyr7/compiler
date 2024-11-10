@@ -53,7 +53,7 @@ literal-expression
 
 scoped-expression
 	: subexpression : `(` expression `)` ;
-	| structure     : `[` expression `]` ;
+	| structure     : `[` expression {`,` expression} `]` ;
 	;
 
 unary-expression
