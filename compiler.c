@@ -583,7 +583,6 @@ typedef enum
 	NODE_TAG_REFERENCE,
 
 	NODE_TAG_SUBEXPRESSION,
-	NODE_TAG_STRUCTURE,
 } Node_Tag;
 
 static const utf8 *representations_of_node_tags[] =
@@ -638,7 +637,6 @@ static const utf8 *representations_of_node_tags[] =
 	[NODE_TAG_STRING]                    = "string",
 	[NODE_TAG_REFERENCE]                 = "reference",
 	[NODE_TAG_SUBEXPRESSION]             = "subexpression",
-	[NODE_TAG_STRUCTURE]                 = "structure",
 };
 
 typedef uint8 Precedence;
@@ -935,17 +933,12 @@ Node *parse_expression(Precedence other_precedence, Token *token, Caret *caret, 
 		left->tag = NODE_TAG_REFERENCE;
 		parse_identifier(&left->data->identifier, token, caret);
 		break;
-
-	case TOKEN_TAG_LEFT_SQUARE_BRACKET:
-		// TODO(Emhyr): parse structure
-		UNIMPLEMENTED();
-		
 	case TOKEN_TAG_LEFT_PARENTHESIS:
 		left = push_into_buffer(sizeof(Node) + sizeof(Node *), alignof(Node), buffer);
-		left->tag = token->tag == TOKEN_TAG_LEFT_PARENTHESIS ? NODE_TAG_SUBEXPRESSION : NODE_TAG_STRUCTURE;
+		left->tag = NODE_TAG_SUBEXPRESSION;
 		get_token(token, caret);
 		left->data->unary = parse_expression(0, token, caret, buffer);
-		if(token->tag == (left->tag == NODE_TAG_SUBEXPRESSION ? TOKEN_TAG_RIGHT_PARENTHESIS : TOKEN_TAG_RIGHT_SQUARE_BRACKET)) get_token(token, caret);
+		if(token->tag == TOKEN_TAG_RIGHT_PARENTHESIS) get_token(token, caret);
 		else fail(caret->source, &token->range, "unterminated scope; expected `%c`", left->tag == NODE_TAG_SUBEXPRESSION ? ')' : ']');
 		break;
 
@@ -967,7 +960,6 @@ Node *parse_expression(Precedence other_precedence, Token *token, Caret *caret, 
 	case TOKEN_TAG_COLON:
 	case TOKEN_TAG_SEMICOLON:
 	case TOKEN_TAG_RIGHT_PARENTHESIS:
-	case TOKEN_TAG_RIGHT_SQUARE_BRACKET:
 	case TOKEN_TAG_RIGHT_CURLY_BRACKET:
 		goto finished;
 
@@ -1021,7 +1013,12 @@ Node *parse_expression(Precedence other_precedence, Token *token, Caret *caret, 
 		default:                                        right_tag = NODE_TAG_INVOCATION;                goto binary;
 		case TOKEN_TAG_QUESTION_MARK:                   right_tag = NODE_TAG_CONDITION;                 goto binary;
 		binary:
-			if((other_precedence == PRECEDENCE_TYPE || other_precedence == PRECEDENCE_ASSIGNMENT)&& (right_tag >= NODE_TAG_ASSIGNMENT && right_tag <= NODE_TAG_RSH_ASSIGNMENT || right_tag == NODE_TAG_LIST)) goto finished;
+			if(other_precedence == PRECEDENCE_TYPE && (right_tag >= NODE_TAG_ASSIGNMENT && right_tag <= NODE_TAG_RSH_ASSIGNMENT || right_tag == NODE_TAG_LIST)) goto finished;
+			if(other_precedence == PRECEDENCE_ASSIGNMENT)
+			{
+				if(right_tag == NODE_TAG_LIST) goto finished;
+				else other_precedence = 0;
+			}
 			Precedence right_precedence = precedences[right_tag];
 			if(right_precedence <= other_precedence) goto finished;
 			if(right_tag != NODE_TAG_INVOCATION) get_token(token, caret);
@@ -1043,7 +1040,6 @@ Node *parse_expression(Precedence other_precedence, Token *token, Caret *caret, 
 		case TOKEN_TAG_COLON:
 		case TOKEN_TAG_SEMICOLON:
 		case TOKEN_TAG_RIGHT_PARENTHESIS:
-		case TOKEN_TAG_RIGHT_SQUARE_BRACKET:
 		case TOKEN_TAG_RIGHT_CURLY_BRACKET:
 		case TOKEN_TAG_EXCLAMATION_MARK:
 			goto finished;
@@ -1126,10 +1122,13 @@ void parse_scope(Scope *scope, Token *token, Caret *caret)
 				Value *value = push_into_buffer(sizeof(Value), alignof(Value), values);
 				++scope->values_count;
 				parse_value(value, token, caret, buffer);
-				node = push_into_buffer(sizeof(Node) + sizeof(Value *), alignof(Node), buffer);
-				node->tag = NODE_TAG_VALUE;
-				node->data->value = value;
-				break;
+				if(value->assignment && !value->constant)
+				{
+					node = push_into_buffer(sizeof(Node) + sizeof(Value *), alignof(Node), buffer);
+					node->tag = NODE_TAG_VALUE;
+					node->data->value = value;
+					goto statement;
+				}
 			}
 			else
 			{
@@ -1137,7 +1136,7 @@ void parse_scope(Scope *scope, Token *token, Caret *caret)
 				*caret = onsetting_caret;
 				goto expression;
 			}
-			break;
+			continue;
 	
 		case TOKEN_TAG_FULL_STOP:
 			if(get_token(token, caret) == TOKEN_TAG_NAME)
@@ -1149,21 +1148,21 @@ void parse_scope(Scope *scope, Token *token, Caret *caret)
 					Routine *routine = push_into_buffer(sizeof(Routine), alignof(Routine), routines);
 					++scope->routines_count;
 					routine->identifier = identifier;
+					get_token(token, caret);
+					Value *parameter;
 					Buffer *parameters = 0;
-					routine->parameters_count = 0;
-					if(get_token(token, caret) == TOKEN_TAG_LEFT_PARENTHESIS)
+					if(token->tag == TOKEN_TAG_LEFT_PARENTHESIS)
 					{
 						parameters = allocate_buffer(MEBIBYTE(1), system_page_size);
 						get_token(token, caret);
 						for(;;)
 						{
-							Value *value = 0;
 							switch(token->tag)
 							{
 							case TOKEN_TAG_NAME:
-								value = push_into_buffer(sizeof(Value), alignof(Value), parameters);
-								parse_value(value, token, caret, buffer);
+								parameter = push_into_buffer(sizeof(Value), alignof(Value), parameters);
 								++routine->parameters_count;
+								parse_value(parameter, token, caret, buffer);
 								break;
 							case TOKEN_TAG_COMMA:
 								get_token(token, caret);
@@ -1172,37 +1171,41 @@ void parse_scope(Scope *scope, Token *token, Caret *caret)
 								get_token(token, caret);
 								goto finished_arguments;
 							default:
-								fail(caret->source, &token->range, "unexpected token; expected name, `,`, or `)`");
+								fail(caret->source, &token->range, "expected name, `,`, or `)`");
+								break;
 							}
 						}
 					finished_arguments:
 					}
 					routine->arguments_count = routine->parameters_count;
-					if(token->tag == TOKEN_TAG_NAME)
+					switch(token->tag)
 					{
+					case TOKEN_TAG_SEMICOLON:
+					case TOKEN_TAG_LEFT_CURLY_BRACKET:
+						break;
+					default:
 						if(!parameters) parameters = allocate_buffer(MEBIBYTE(1), system_page_size);
 						for(;;)
 						{
-							Value *value = 0;
 							switch(token->tag)
 							{
 							case TOKEN_TAG_NAME:
-								value = push_into_buffer(sizeof(Value), alignof(Value), parameters);
-								parse_value(value, token, caret, buffer);
+								parameter = push_into_buffer(sizeof(Value), alignof(Value), parameters);
 								++routine->parameters_count;
+								parse_value(parameter, token, caret, buffer);
 								break;
 							case TOKEN_TAG_COMMA:
 								get_token(token, caret);
 								break;
-							case TOKEN_TAG_SEMICOLON:
-								get_token(token, caret);
 							case TOKEN_TAG_LEFT_CURLY_BRACKET:
 								goto finished_results;
 							default:
-								fail(caret->source, &token->range, "unexpected token; expected name, `,`, `;`, or `{`");
+								fail(caret->source, &token->range, "expected name, `,`, or `{`");
+								break;
 							}
 						}
 					finished_results:
+						break;
 					}
 					routine->parameters = (Value *)parameters->base;
 					if(token->tag == TOKEN_TAG_LEFT_CURLY_BRACKET) parse_scope(&routine->scope, token, caret);
@@ -1237,6 +1240,7 @@ void parse_scope(Scope *scope, Token *token, Caret *caret)
 			goto finished;
 		}
 
+	statement:
 		Node **statement = push_into_buffer(sizeof(Node *), alignof(Node *), statements);
 		*statement = node;
 		++scope->statements_count;
@@ -1262,8 +1266,8 @@ void dump(Node *);
 void dump_value(Value *value)
 {
 	print("{\"identifier\":\"%.*s\"", value->identifier.size, value->identifier.value);
-	print(",\"type\":"), dump(value->type);
-	print(",\"assignment\":"), dump(value->assignment);
+	if(value->type) print(",\"type\":"), dump(value->type);
+	if(value->assignment) print(",\"assignment\":"), dump(value->assignment);
 	print(",\"constant\":%i}", value->constant);
 }
 
@@ -1278,13 +1282,13 @@ void dump_scope(Scope *scope);
 void dump_routine(Routine *routine)
 {
 	print("{\"identifier\":\"%.*s\"", routine->identifier.size, routine->identifier.value);
-	print(",\"parameters\":[");
+	print(",\"arguments\":[");
 	if(routine->parameters_count)
 	{
 		for(uint32 i = 0; i < routine->parameters_count - 1; ++i)
 		{
-			Value *parameter = routine->parameters + i;
-			dump_value(parameter);
+			Value *value = routine->parameters + i;
+			dump_value(value);
 			print(",");
 		}
 		dump_value(routine->parameters + routine->parameters_count - 1);
@@ -1302,8 +1306,8 @@ void dump_scope(Scope *scope)
 	{
 		for(uint32 i = 0; i < scope->values_count - 1; ++i)
 		{
-			Value *Value = scope->values + i;
-			dump_value(Value);
+			Value *value = scope->values + i;
+			dump_value(value);
 			print(",");
 		}
 		dump_value(scope->values + scope->values_count - 1);
@@ -1433,9 +1437,6 @@ void dump(Node *node)
 			break;
 		case NODE_TAG_REFERENCE:
 			print("\"%.*s\"", node->data->identifier.size, node->data->identifier.value);
-			break;
-
-		case NODE_TAG_STRUCTURE:
 			break;
 
 		default:

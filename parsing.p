@@ -1,5 +1,5 @@
 {
-	position: [0, 0];
+	position: (0, 0);
 
 	foo:  1;
 	bar: -1;
@@ -23,9 +23,10 @@
 
 	.label
 
-	.sub: (a: foo, b: foo : 0) r: bar {
+	.sub: (a: foo, b: foo) r: bar {
 		r = a - b;
 		return;
 	}
-	r := sub(a, b);
+
+	r := sub(0, 0);
 }
