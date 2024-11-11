@@ -3,7 +3,7 @@ setlocal
 
 if not exist build mkdir build
 
-set CFLAGS=-O0 -std=c23 -g
+set CFLAGS=-O0 -std=c23 -g -Wno-gnu-variable-sized-type-not-at-end
 set LFLAGS=
 
 clang %CFLAGS% -o build\compiler.obj -c compiler.c %LFLAGS%

@@ -29,4 +29,7 @@
 	}
 
 	r := sub(0, 0);
+
+	array: (uint8.. 32);
+	array2: uint8.. 32 + 32;
 }

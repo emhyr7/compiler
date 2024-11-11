@@ -6,6 +6,8 @@
 #define MEBIBYTE(x) (KIBIBYTE(x) << 10)
 #define GIBIBYTE(x) (MEBIBYTE(x) << 10)
 
+#define UMAXOF(type) ((type)-1)
+
 uint32 format_v(utf8 *buffer, uint32 size, const utf8 *format, vargs vargs);
 uint32 format(utf8 *buffer, uint32 size, const utf8 *format, ...);
 void print_v(const utf8 *format, vargs vargs);
@@ -44,9 +46,9 @@ void *push_into_buffer(uint32 size, uint32 alignment, Buffer *buffer);
 typedef struct
 {
 	const utf8 *path;
-	utf8 *data;
-	uint32 path_size;
-	uint32 data_size;
+	utf8       *data;
+	uint32      data_size;
+	uint16      path_size;
 } Source;
 
 static void load_source(Source *source, const utf8 *path)
@@ -78,136 +80,136 @@ typedef struct
 typedef struct
 {
 	const Source *source;
-	Location location;
-	utf32 character;
-	uint8 increment;
+	Location      location;
+	utf32         character;
+	uint8         increment;
 } Caret;
 
 // NOTE(Emhyr): didn't feel like using X macros :/. fingers hurt
 typedef enum : uint8
 {
-	TOKEN_TAG_ETX                  = '\3',
-	TOKEN_TAG_EXCLAMATION_MARK     = '!',
-	TOKEN_TAG_OCTOTHORPE           = '#',
-	TOKEN_TAG_DOLLAR_SIGN          = '$',
-	TOKEN_TAG_PERCENT_SIGN         = '%',
-	TOKEN_TAG_AMPERSAND            = '&',
-	TOKEN_TAG_APOSTROPHE           = '\'',
-	TOKEN_TAG_LEFT_PARENTHESIS     = '(',
-	TOKEN_TAG_RIGHT_PARENTHESIS    = ')',
-	TOKEN_TAG_ASTERISK             = '*',
-	TOKEN_TAG_PLUS_SIGN            = '+',
-	TOKEN_TAG_COMMA                = ',',
-	TOKEN_TAG_HYPHEN_MINUS         = '-',
-	TOKEN_TAG_FULL_STOP            = '.',
-	TOKEN_TAG_SLASH                = '/',
-	TOKEN_TAG_COLON                = ':',
-	TOKEN_TAG_SEMICOLON            = ';',
-	TOKEN_TAG_LESS_THAN_SIGN       = '<',
-	TOKEN_TAG_EQUAL_SIGN           = '=',
-	TOKEN_TAG_GREATER_THAN_SIGN    = '>',
-	TOKEN_TAG_QUESTION_MARK        = '?',
-	TOKEN_TAG_AT_SIGN              = '@',
-	TOKEN_TAG_LEFT_SQUARE_BRACKET  = '[',
-	TOKEN_TAG_BACKSLASH            = '\\',
-	TOKEN_TAG_RIGHT_SQUARE_BRACKET = ']',
-	TOKEN_TAG_CIRCUMFLEX_ACCENT    = '^',
-	TOKEN_TAG_GRAVE_ACCENT         = '`',
-	TOKEN_TAG_LEFT_CURLY_BRACKET   = '{',
-	TOKEN_TAG_VERTICAL_BAR         = '|',
-	TOKEN_TAG_RIGHT_CURLY_BRACKET  = '}',
-	TOKEN_TAG_TILDE                = '~',
-	TOKEN_TAG_NAME                 = 'A',
-	TOKEN_TAG_BINARY,
-	TOKEN_TAG_DIGITAL,
-	TOKEN_TAG_HEXADECIMAL,
-	TOKEN_TAG_DECIMAL,
-	TOKEN_TAG_TEXT,
-	TOKEN_TAG_EXCLAMATION_MARK_EQUAL_SIGN,
-	TOKEN_TAG_PERCENT_SIGN_EQUAL_SIGN,
-	TOKEN_TAG_AMPERSAND_EQUAL_SIGN,
-	TOKEN_TAG_AMPERSAND_2,
-	TOKEN_TAG_ASTERISK_EQUAL_SIGN,
-	TOKEN_TAG_PLUS_SIGN_EQUAL_SIGN,
-	TOKEN_TAG_HYPHEN_MINUS_EQUAL_SIGN,
-	TOKEN_TAG_FULL_STOP_2,
-	TOKEN_TAG_SLASH_EQUAL_SIGN,
-	TOKEN_TAG_LESS_THAN_SIGN_EQUAL_SIGN,
-	TOKEN_TAG_LESS_THAN_SIGN_2,
-	TOKEN_TAG_LESS_THAN_SIGN_2_EQUAL_SIGN,
-	TOKEN_TAG_EQUAL_SIGN_2,
-	TOKEN_TAG_GREATER_THAN_SIGN_EQUAL_SIGN,
-	TOKEN_TAG_GREATER_THAN_SIGN_2,
-	TOKEN_TAG_GREATER_THAN_SIGN_2_EQUAL_SIGN,
-	TOKEN_TAG_CIRCUMFLEX_ACCENT_EQUAL_SIGN,
-	TOKEN_TAG_VERTICAL_BAR_EQUAL_SIGN,
-	TOKEN_TAG_VERTICAL_BAR_2,
+	ETX                  = '\3',
+	EXCLAMATION_MARK     = '!',
+	OCTOTHORPE           = '#',
+	DOLLAR_SIGN          = '$',
+	PERCENT_SIGN         = '%',
+	AMPERSAND            = '&',
+	APOSTROPHE           = '\'',
+	LEFT_PARENTHESIS     = '(',
+	RIGHT_PARENTHESIS    = ')',
+	ASTERISK             = '*',
+	PLUS_SIGN            = '+',
+	COMMA                = ',',
+	HYPHEN_MINUS         = '-',
+	FULL_STOP            = '.',
+	SLASH                = '/',
+	COLON                = ':',
+	SEMICOLON            = ';',
+	LESS_THAN_SIGN       = '<',
+	EQUAL_SIGN           = '=',
+	GREATER_THAN_SIGN    = '>',
+	QUESTION_MARK        = '?',
+	AT_SIGN              = '@',
+	LEFT_SQUARE_BRACKET  = '[',
+	BACKSLASH            = '\\',
+	RIGHT_SQUARE_BRACKET = ']',
+	CIRCUMFLEX_ACCENT    = '^',
+	GRAVE_ACCENT         = '`',
+	LEFT_CURLY_BRACKET   = '{',
+	VERTICAL_BAR         = '|',
+	RIGHT_CURLY_BRACKET  = '}',
+	TILDE                = '~',
+	NAME                 = 'A',
+	BINARY,
+	DIGITAL,
+	HEXADECIMAL,
+	DECIMAL,
+	TEXT,
+	EXCLAMATION_MARK_EQUAL_SIGN,
+	PERCENT_SIGN_EQUAL_SIGN,
+	AMPERSAND_EQUAL_SIGN,
+	AMPERSAND_2,
+	ASTERISK_EQUAL_SIGN,
+	PLUS_SIGN_EQUAL_SIGN,
+	HYPHEN_MINUS_EQUAL_SIGN,
+	FULL_STOP_2,
+	SLASH_EQUAL_SIGN,
+	LESS_THAN_SIGN_EQUAL_SIGN,
+	LESS_THAN_SIGN_2,
+	LESS_THAN_SIGN_2_EQUAL_SIGN,
+	EQUAL_SIGN_2,
+	GREATER_THAN_SIGN_EQUAL_SIGN,
+	GREATER_THAN_SIGN_2,
+	GREATER_THAN_SIGN_2_EQUAL_SIGN,
+	CIRCUMFLEX_ACCENT_EQUAL_SIGN,
+	VERTICAL_BAR_EQUAL_SIGN,
+	VERTICAL_BAR_2,
 } Token_Tag;
 
 static utf8 *representations_of_token_tags[] =
 {
-	[TOKEN_TAG_ETX]                            = "ETX",
-	[TOKEN_TAG_EXCLAMATION_MARK]               = "`!`",
-	[TOKEN_TAG_OCTOTHORPE]                     = "`#`",
-	[TOKEN_TAG_DOLLAR_SIGN]                    = "`$`",
-	[TOKEN_TAG_PERCENT_SIGN]                   = "`%`",
-	[TOKEN_TAG_AMPERSAND]                      = "`&`",
-	[TOKEN_TAG_APOSTROPHE]                     = "`'`",
-	[TOKEN_TAG_LEFT_PARENTHESIS]               = "`(`",
-	[TOKEN_TAG_RIGHT_PARENTHESIS]              = "`)`",
-	[TOKEN_TAG_ASTERISK]                       = "`*`",
-	[TOKEN_TAG_PLUS_SIGN]                      = "`+`",
-	[TOKEN_TAG_COMMA]                          = "`,`",
-	[TOKEN_TAG_HYPHEN_MINUS]                   = "`-`",
-	[TOKEN_TAG_FULL_STOP]                      = "`.`",
-	[TOKEN_TAG_SLASH]                          = "`/`",
-	[TOKEN_TAG_COLON]                          = "`:`",
-	[TOKEN_TAG_SEMICOLON]                      = "`;`",
-	[TOKEN_TAG_LESS_THAN_SIGN]                 = "`<`",
-	[TOKEN_TAG_EQUAL_SIGN]                     = "`=`",
-	[TOKEN_TAG_GREATER_THAN_SIGN]              = "`>`",
-	[TOKEN_TAG_QUESTION_MARK]                  = "`?`",
-	[TOKEN_TAG_AT_SIGN]                        = "`@`",
-	[TOKEN_TAG_LEFT_SQUARE_BRACKET]            = "`[`",
-	[TOKEN_TAG_BACKSLASH]                      = "`\\`",
-	[TOKEN_TAG_RIGHT_SQUARE_BRACKET]           = "`]`",
-	[TOKEN_TAG_CIRCUMFLEX_ACCENT]              = "`^`",
-	[TOKEN_TAG_GRAVE_ACCENT]                   = "```",
-	[TOKEN_TAG_LEFT_CURLY_BRACKET]             = "`{`",
-	[TOKEN_TAG_VERTICAL_BAR]                   = "`|`",
-	[TOKEN_TAG_RIGHT_CURLY_BRACKET]            = "`}`",
-	[TOKEN_TAG_TILDE]                          = "`~`",
-	[TOKEN_TAG_NAME]                           = "name",
-	[TOKEN_TAG_BINARY]                         = "binary",
-	[TOKEN_TAG_DIGITAL]                        = "digital",
-	[TOKEN_TAG_HEXADECIMAL]                    = "hexadecimal",
-	[TOKEN_TAG_DECIMAL]                        = "decimal",
-	[TOKEN_TAG_TEXT]                           = "text",
-	[TOKEN_TAG_EXCLAMATION_MARK_EQUAL_SIGN]    = "`!=`",
-	[TOKEN_TAG_PERCENT_SIGN_EQUAL_SIGN]        = "`%=`",
-	[TOKEN_TAG_AMPERSAND_EQUAL_SIGN]           = "`&=`",
-	[TOKEN_TAG_AMPERSAND_2]                    = "`&&`",
-	[TOKEN_TAG_ASTERISK_EQUAL_SIGN]            = "`*=`",
-	[TOKEN_TAG_PLUS_SIGN_EQUAL_SIGN]           = "`+=`",
-	[TOKEN_TAG_HYPHEN_MINUS_EQUAL_SIGN]        = "`-=`",
-	[TOKEN_TAG_FULL_STOP_2]                    = "`..`",
-	[TOKEN_TAG_SLASH_EQUAL_SIGN]               = "`/=`",
-	[TOKEN_TAG_LESS_THAN_SIGN_EQUAL_SIGN]      = "`<=`",
-	[TOKEN_TAG_LESS_THAN_SIGN_2]               = "`<<`",
-	[TOKEN_TAG_LESS_THAN_SIGN_2_EQUAL_SIGN]    = "`<<=`",
-	[TOKEN_TAG_EQUAL_SIGN_2]                   = "`==`",
-	[TOKEN_TAG_GREATER_THAN_SIGN_EQUAL_SIGN]   = "`>=`",
-	[TOKEN_TAG_GREATER_THAN_SIGN_2]            = "`>>`",
-	[TOKEN_TAG_GREATER_THAN_SIGN_2_EQUAL_SIGN] = "`>>=`",
-	[TOKEN_TAG_CIRCUMFLEX_ACCENT_EQUAL_SIGN]   = "`^=`",
-	[TOKEN_TAG_VERTICAL_BAR_EQUAL_SIGN]        = "`|=`",
-	[TOKEN_TAG_VERTICAL_BAR_2]                 = "`||`"
+	[ETX]                            = "ETX",
+	[EXCLAMATION_MARK]               = "`!`",
+	[OCTOTHORPE]                     = "`#`",
+	[DOLLAR_SIGN]                    = "`$`",
+	[PERCENT_SIGN]                   = "`%`",
+	[AMPERSAND]                      = "`&`",
+	[APOSTROPHE]                     = "`'`",
+	[LEFT_PARENTHESIS]               = "`(`",
+	[RIGHT_PARENTHESIS]              = "`)`",
+	[ASTERISK]                       = "`*`",
+	[PLUS_SIGN]                      = "`+`",
+	[COMMA]                          = "`,`",
+	[HYPHEN_MINUS]                   = "`-`",
+	[FULL_STOP]                      = "`.`",
+	[SLASH]                          = "`/`",
+	[COLON]                          = "`:`",
+	[SEMICOLON]                      = "`;`",
+	[LESS_THAN_SIGN]                 = "`<`",
+	[EQUAL_SIGN]                     = "`=`",
+	[GREATER_THAN_SIGN]              = "`>`",
+	[QUESTION_MARK]                  = "`?`",
+	[AT_SIGN]                        = "`@`",
+	[LEFT_SQUARE_BRACKET]            = "`[`",
+	[BACKSLASH]                      = "`\\`",
+	[RIGHT_SQUARE_BRACKET]           = "`]`",
+	[CIRCUMFLEX_ACCENT]              = "`^`",
+	[GRAVE_ACCENT]                   = "```",
+	[LEFT_CURLY_BRACKET]             = "`{`",
+	[VERTICAL_BAR]                   = "`|`",
+	[RIGHT_CURLY_BRACKET]            = "`}`",
+	[TILDE]                          = "`~`",
+	[NAME]                           = "name",
+	[BINARY]                         = "binary",
+	[DIGITAL]                        = "digital",
+	[HEXADECIMAL]                    = "hexadecimal",
+	[DECIMAL]                        = "decimal",
+	[TEXT]                           = "text",
+	[EXCLAMATION_MARK_EQUAL_SIGN]    = "`!=`",
+	[PERCENT_SIGN_EQUAL_SIGN]        = "`%=`",
+	[AMPERSAND_EQUAL_SIGN]           = "`&=`",
+	[AMPERSAND_2]                    = "`&&`",
+	[ASTERISK_EQUAL_SIGN]            = "`*=`",
+	[PLUS_SIGN_EQUAL_SIGN]           = "`+=`",
+	[HYPHEN_MINUS_EQUAL_SIGN]        = "`-=`",
+	[FULL_STOP_2]                    = "`..`",
+	[SLASH_EQUAL_SIGN]               = "`/=`",
+	[LESS_THAN_SIGN_EQUAL_SIGN]      = "`<=`",
+	[LESS_THAN_SIGN_2]               = "`<<`",
+	[LESS_THAN_SIGN_2_EQUAL_SIGN]    = "`<<=`",
+	[EQUAL_SIGN_2]                   = "`==`",
+	[GREATER_THAN_SIGN_EQUAL_SIGN]   = "`>=`",
+	[GREATER_THAN_SIGN_2]            = "`>>`",
+	[GREATER_THAN_SIGN_2_EQUAL_SIGN] = "`>>=`",
+	[CIRCUMFLEX_ACCENT_EQUAL_SIGN]   = "`^=`",
+	[VERTICAL_BAR_EQUAL_SIGN]        = "`|=`",
+	[VERTICAL_BAR_2]                 = "`||`"
 };
 
 typedef struct
 {
 	Token_Tag tag;
-	Range range;
+	Range     range;
 } Token;
 
 static inline bit check_whitespace(utf32 character)
@@ -277,20 +279,20 @@ static utf32 get_character(Caret *caret)
 
 typedef enum
 {
-	SEVERITY_VERBOSE,
-	SEVERITY_COMMENT,
-	SEVERITY_CAUTION,
-	SEVERITY_FAILURE,
+	VERBOSE,
+	COMMENT,
+	CAUTION,
+	FAILURE,
 } Severity;
 
 static void report_v(Severity severity, const Source *source, const Range *range, const utf8 *message, vargs vargs)
 {
 	const utf8 *severities[] =
 	{
-		[SEVERITY_VERBOSE] = "verbose",
-		[SEVERITY_COMMENT] = "comment",
-		[SEVERITY_CAUTION] = "caution",
-		[SEVERITY_FAILURE] = "failure",
+		[VERBOSE] = "verbose",
+		[COMMENT] = "comment",
+		[CAUTION] = "caution",
+		[FAILURE] = "failure",
 	};
 	if(source && range)
 	{
@@ -327,7 +329,7 @@ _Noreturn static inline void fail(const Source *source, const Range *range, cons
 {
 	vargs vargs;
 	GET_VARGS(vargs, message);
-	report_v(SEVERITY_FAILURE, source, range, message, vargs);
+	report_v(FAILURE, source, range, message, vargs);
 	END_VARGS(vargs);
 	terminate(-1);
 	UNREACHABLE();
@@ -346,7 +348,7 @@ repeat:
 
 	if(check_letter(caret->character))
 	{
-		token->tag = TOKEN_TAG_NAME;
+		token->tag = NAME;
 		do get_character(caret);
 		while(check_letter(caret->character) || check_digital(caret->character) || caret->character == '-');
 		// TODO(Emhyr): disallow names ending wiht `-`
@@ -354,18 +356,18 @@ repeat:
 	else if(check_digital(caret->character))
 	{
 		bit (*checker)(utf32) = &check_digital;
-		token->tag = TOKEN_TAG_DIGITAL;
+		token->tag = DIGITAL;
 		if(caret->character == '0')
 		{
 			switch(get_character(caret))
 			{
 			case 'b':
-				token->tag = TOKEN_TAG_BINARY;
+				token->tag = BINARY;
 				checker = &check_binary;
 				get_character(caret);
 				break;
 			case 'x':
-				token->tag = TOKEN_TAG_HEXADECIMAL;
+				token->tag = HEXADECIMAL;
 				checker = &check_hexadecimal;
 				get_character(caret);
 				break;
@@ -380,13 +382,13 @@ repeat:
 			{
 				switch(token->tag)
 				{
-				case TOKEN_TAG_DECIMAL:
-				case TOKEN_TAG_BINARY:
-				case TOKEN_TAG_HEXADECIMAL:
+				case DECIMAL:
+				case BINARY:
+				case HEXADECIMAL:
 					failure_message = "weird ass number";
 					goto failed;
 				default:
-					token->tag = TOKEN_TAG_DECIMAL;
+					token->tag = DECIMAL;
 					get_character(caret);
 					break;
 				}
@@ -396,7 +398,7 @@ repeat:
 	else switch(caret->character)
 	{
 	case '\3':
-		token->tag = TOKEN_TAG_ETX;
+		token->tag = ETX;
 		break;
 	case '"':
 		for(;;) switch(get_character(caret))
@@ -412,7 +414,7 @@ repeat:
 		}
 	text_terminated:
 		get_character(caret);
-		token->tag = TOKEN_TAG_TEXT;
+		token->tag = TEXT;
 		break;
 
 	case '!':
@@ -427,25 +429,25 @@ repeat:
 	case '>':
 	case '^':
 	case '|':
+	case '.':
 		uint8 peeked_increment;
 		utf32 second_character = peek_character(&peeked_increment, caret);
 		if(second_character == '=')
 		{
 			switch(caret->character)
 			{
-			case '!': token->tag = TOKEN_TAG_EXCLAMATION_MARK_EQUAL_SIGN;  break;
-			case '%': token->tag = TOKEN_TAG_PERCENT_SIGN_EQUAL_SIGN;      break;
-			case '&': token->tag = TOKEN_TAG_AMPERSAND_EQUAL_SIGN;         break;
-			case '*': token->tag = TOKEN_TAG_ASTERISK_EQUAL_SIGN;          break;
-			case '+': token->tag = TOKEN_TAG_PLUS_SIGN_EQUAL_SIGN;         break;
-			case '-': token->tag = TOKEN_TAG_HYPHEN_MINUS_EQUAL_SIGN;      break;
-			case '.': token->tag = TOKEN_TAG_FULL_STOP_2;                  break;
-			case '/': token->tag = TOKEN_TAG_SLASH_EQUAL_SIGN;             break;
-			case '<': token->tag = TOKEN_TAG_LESS_THAN_SIGN_EQUAL_SIGN;    break;
-			case '=': token->tag = TOKEN_TAG_EQUAL_SIGN_2;                 break;
-			case '>': token->tag = TOKEN_TAG_GREATER_THAN_SIGN_EQUAL_SIGN; break;
-			case '^': token->tag = TOKEN_TAG_CIRCUMFLEX_ACCENT_EQUAL_SIGN; break;
-			case '|': token->tag = TOKEN_TAG_VERTICAL_BAR_EQUAL_SIGN;      break;
+			case '!': token->tag = EXCLAMATION_MARK_EQUAL_SIGN;  break;
+			case '%': token->tag = PERCENT_SIGN_EQUAL_SIGN;      break;
+			case '&': token->tag = AMPERSAND_EQUAL_SIGN;         break;
+			case '*': token->tag = ASTERISK_EQUAL_SIGN;          break;
+			case '+': token->tag = PLUS_SIGN_EQUAL_SIGN;         break;
+			case '-': token->tag = HYPHEN_MINUS_EQUAL_SIGN;      break;
+			case '/': token->tag = SLASH_EQUAL_SIGN;             break;
+			case '<': token->tag = LESS_THAN_SIGN_EQUAL_SIGN;    break;
+			case '=': token->tag = EQUAL_SIGN_2;                 break;
+			case '>': token->tag = GREATER_THAN_SIGN_EQUAL_SIGN; break;
+			case '^': token->tag = CIRCUMFLEX_ACCENT_EQUAL_SIGN; break;
+			case '|': token->tag = VERTICAL_BAR_EQUAL_SIGN;      break;
 			}
 			goto twice;
 		}
@@ -453,8 +455,9 @@ repeat:
 		{
 			switch(second_character)
 			{
-			case '&': token->tag = TOKEN_TAG_AMPERSAND_2;    break;
-			case '|': token->tag = TOKEN_TAG_VERTICAL_BAR_2; break;
+			case '&': token->tag = AMPERSAND_2;    break;
+			case '|': token->tag = VERTICAL_BAR_2; break;
+			case '.': token->tag = FULL_STOP_2;    break;
 			case '<':
 			case '>':
 				get_character(caret);
@@ -462,16 +465,16 @@ repeat:
 				{
 					switch(second_character)
 					{
-					case '<': token->tag = TOKEN_TAG_LESS_THAN_SIGN_2_EQUAL_SIGN;    break;
-					case '>': token->tag = TOKEN_TAG_GREATER_THAN_SIGN_2_EQUAL_SIGN; break;
+					case '<': token->tag = LESS_THAN_SIGN_2_EQUAL_SIGN;    break;
+					case '>': token->tag = GREATER_THAN_SIGN_2_EQUAL_SIGN; break;
 					}
 				}
 				else
 				{
 					switch(second_character)
 					{
-					case '<': token->tag = TOKEN_TAG_LESS_THAN_SIGN_2;    break;
-					case '>': token->tag = TOKEN_TAG_GREATER_THAN_SIGN_2; break;
+					case '<': token->tag = LESS_THAN_SIGN_2;    break;
+					case '>': token->tag = GREATER_THAN_SIGN_2; break;
 					}
 				}
 				break;
@@ -491,7 +494,6 @@ repeat:
 	case '(':
 	case ')':
 	case ',':
-	case '.':
 	case ':':
 	case ';':
 	case '?':
@@ -527,182 +529,182 @@ failed:
 
 typedef enum
 {
-	NODE_TAG_INVOCATION,
-	NODE_TAG_NEGATIVE,
-	NODE_TAG_NEGATION,
-	NODE_TAG_NOT,
-	NODE_TAG_ADDRESS,
-	NODE_TAG_INDIRECTION,
-	NODE_TAG_JUMP,
-	NODE_TAG_INFERENCE,
+	INVOCATION,
+	NEGATIVE,
+	NEGATION,
+	NOT,
+	ADDRESS,
+	INDIRECTION,
+	JUMP,
+	INFERENCE,
 	
-	NODE_TAG_LIST,
-	NODE_TAG_RANGE,
-	NODE_TAG_RESOLUTION,
-	NODE_TAG_ADDITION,
-	NODE_TAG_SUBTRACTION,
-	NODE_TAG_MULTIPLICATION,
-	NODE_TAG_DIVISION,
-	NODE_TAG_REMAINDER,
-	NODE_TAG_AND,
-	NODE_TAG_OR,
-	NODE_TAG_XOR,
-	NODE_TAG_LSH,
-	NODE_TAG_RSH,
-	NODE_TAG_CONJUNCTION,
-	NODE_TAG_DISJUNCTION,
-	NODE_TAG_EQUALITY,
-	NODE_TAG_INEQUALITY,
-	NODE_TAG_MAJORITY,
-	NODE_TAG_MINORITY,
-	NODE_TAG_INCLUSIVE_MAJORITY,
-	NODE_TAG_INCLUSIVE_MINORITY,
+	LIST,
+	RANGE,
+	RESOLUTION,
+	ADDITION,
+	SUBTRACTION,
+	MULTIPLICATION,
+	DIVISION,
+	REMAINDER,
+	AND,
+	OR,
+	XOR,
+	LSH,
+	RSH,
+	CONJUNCTION,
+	DISJUNCTION,
+	EQUALITY,
+	INEQUALITY,
+	MAJORITY,
+	MINORITY,
+	INCLUSIVE_MAJORITY,
+	INCLUSIVE_MINORITY,
 	
-	NODE_TAG_ASSIGNMENT,
-	NODE_TAG_ADDITION_ASSIGNMENT,
-	NODE_TAG_SUBTRACTION_ASSIGNMENT,
-	NODE_TAG_MULTIPLICATION_ASSIGNMENT,
-	NODE_TAG_DIVISION_ASSIGNMENT,
-	NODE_TAG_REMAINDER_ASSIGNMENT,
-	NODE_TAG_AND_ASSIGNMENT,
-	NODE_TAG_OR_ASSIGNMENT,
-	NODE_TAG_XOR_ASSIGNMENT,
-	NODE_TAG_LSH_ASSIGNMENT,
-	NODE_TAG_RSH_ASSIGNMENT,
+	ASSIGNMENT,
+	ADDITION_ASSIGNMENT,
+	SUBTRACTION_ASSIGNMENT,
+	MULTIPLICATION_ASSIGNMENT,
+	DIVISION_ASSIGNMENT,
+	REMAINDER_ASSIGNMENT,
+	AND_ASSIGNMENT,
+	OR_ASSIGNMENT,
+	XOR_ASSIGNMENT,
+	LSH_ASSIGNMENT,
+	RSH_ASSIGNMENT,
 	
-	NODE_TAG_CONDITION,
+	CONDITION,
 
-	NODE_TAG_VALUE,
-	NODE_TAG_LABEL,
-	NODE_TAG_ROUTINE,
-	NODE_TAG_SCOPE,
+	VALUE,
+	LABEL,
+	ROUTINE,
+	SCOPE,
 
-	NODE_TAG_INTEGER,
-	NODE_TAG_REAL,
-	NODE_TAG_STRING,
-	NODE_TAG_REFERENCE,
+	INTEGER,
+	REAL,
+	STRING,
+	REFERENCE,
 
-	NODE_TAG_SUBEXPRESSION,
+	SUBEXPRESSION,
 } Node_Tag;
 
 static const utf8 *representations_of_node_tags[] =
 {
-	[NODE_TAG_INVOCATION]                = "invocation",
-	[NODE_TAG_NEGATIVE]                  = "negative",
-	[NODE_TAG_NEGATION]                  = "negation",
-	[NODE_TAG_NOT]                       = "NOT",
-	[NODE_TAG_ADDRESS]                   = "address",
-	[NODE_TAG_INDIRECTION]               = "indirection",
-	[NODE_TAG_JUMP]                      = "jump",
-	[NODE_TAG_INFERENCE]                 = "inference",
-	[NODE_TAG_LIST]                      = "list",
-	[NODE_TAG_RANGE]                     = "range",
-	[NODE_TAG_RESOLUTION]                = "resolution",
-	[NODE_TAG_ADDITION]                  = "addition",
-	[NODE_TAG_SUBTRACTION]               = "subtraction",
-	[NODE_TAG_MULTIPLICATION]            = "multiplication",
-	[NODE_TAG_DIVISION]                  = "division",
-	[NODE_TAG_REMAINDER]                 = "remainder",
-	[NODE_TAG_AND]                       = "AND",
-	[NODE_TAG_OR]                        = "OR",
-	[NODE_TAG_XOR]                       = "XOR",
-	[NODE_TAG_LSH]                       = "LSH",
-	[NODE_TAG_RSH]                       = "RSH",
-	[NODE_TAG_CONJUNCTION]               = "conjunction",
-	[NODE_TAG_DISJUNCTION]               = "disjunction",
-	[NODE_TAG_EQUALITY]                  = "equality",
-	[NODE_TAG_INEQUALITY]                = "inequality",
-	[NODE_TAG_MAJORITY]                  = "majority",
-	[NODE_TAG_MINORITY]                  = "minority",
-	[NODE_TAG_INCLUSIVE_MAJORITY]        = "inclusive majority",
-	[NODE_TAG_INCLUSIVE_MINORITY]        = "inclusive minority",
-	[NODE_TAG_ASSIGNMENT]                = "assignment",
-	[NODE_TAG_ADDITION_ASSIGNMENT]       = "addition assignment",
-	[NODE_TAG_SUBTRACTION_ASSIGNMENT]    = "subtraction assignment",
-	[NODE_TAG_MULTIPLICATION_ASSIGNMENT] = "multiplication assignment",
-	[NODE_TAG_DIVISION_ASSIGNMENT]       = "division assignment",
-	[NODE_TAG_REMAINDER_ASSIGNMENT]      = "remainder assignment",
-	[NODE_TAG_AND_ASSIGNMENT]            = "AND assignment",
-	[NODE_TAG_OR_ASSIGNMENT]             = "OR assignment",
-	[NODE_TAG_XOR_ASSIGNMENT]            = "XOR assignment",
-	[NODE_TAG_LSH_ASSIGNMENT]            = "LSH assignment",
-	[NODE_TAG_RSH_ASSIGNMENT]            = "RSH assignment",
-	[NODE_TAG_CONDITION]                 = "condition",
-	[NODE_TAG_VALUE]                     = "value",
-	[NODE_TAG_LABEL]                     = "label",
-	[NODE_TAG_ROUTINE]                   = "routine",
-	[NODE_TAG_SCOPE]                     = "scope",
-	[NODE_TAG_INTEGER]                   = "integer",
-	[NODE_TAG_REAL]                      = "real",
-	[NODE_TAG_STRING]                    = "string",
-	[NODE_TAG_REFERENCE]                 = "reference",
-	[NODE_TAG_SUBEXPRESSION]             = "subexpression",
+	[INVOCATION]                = "invocation",
+	[NEGATIVE]                  = "negative",
+	[NEGATION]                  = "negation",
+	[NOT]                       = "NOT",
+	[ADDRESS]                   = "address",
+	[INDIRECTION]               = "indirection",
+	[JUMP]                      = "jump",
+	[INFERENCE]                 = "inference",
+	[LIST]                      = "list",
+	[RANGE]                     = "range",
+	[RESOLUTION]                = "resolution",
+	[ADDITION]                  = "addition",
+	[SUBTRACTION]               = "subtraction",
+	[MULTIPLICATION]            = "multiplication",
+	[DIVISION]                  = "division",
+	[REMAINDER]                 = "remainder",
+	[AND]                       = "AND",
+	[OR]                        = "OR",
+	[XOR]                       = "XOR",
+	[LSH]                       = "LSH",
+	[RSH]                       = "RSH",
+	[CONJUNCTION]               = "conjunction",
+	[DISJUNCTION]               = "disjunction",
+	[EQUALITY]                  = "equality",
+	[INEQUALITY]                = "inequality",
+	[MAJORITY]                  = "majority",
+	[MINORITY]                  = "minority",
+	[INCLUSIVE_MAJORITY]        = "inclusive majority",
+	[INCLUSIVE_MINORITY]        = "inclusive minority",
+	[ASSIGNMENT]                = "assignment",
+	[ADDITION_ASSIGNMENT]       = "addition assignment",
+	[SUBTRACTION_ASSIGNMENT]    = "subtraction assignment",
+	[MULTIPLICATION_ASSIGNMENT] = "multiplication assignment",
+	[DIVISION_ASSIGNMENT]       = "division assignment",
+	[REMAINDER_ASSIGNMENT]      = "remainder assignment",
+	[AND_ASSIGNMENT]            = "AND assignment",
+	[OR_ASSIGNMENT]             = "OR assignment",
+	[XOR_ASSIGNMENT]            = "XOR assignment",
+	[LSH_ASSIGNMENT]            = "LSH assignment",
+	[RSH_ASSIGNMENT]            = "RSH assignment",
+	[CONDITION]                 = "condition",
+	[VALUE]                     = "value",
+	[LABEL]                     = "label",
+	[ROUTINE]                   = "routine",
+	[SCOPE]                     = "scope",
+	[INTEGER]                   = "integer",
+	[REAL]                      = "real",
+	[STRING]                    = "string",
+	[REFERENCE]                 = "reference",
+	[SUBEXPRESSION]             = "subexpression",
 };
 
 typedef uint8 Precedence;
 
 enum : uint8
 {
-	PRECEDENCE_TYPE       = 100,
-	PRECEDENCE_ASSIGNMENT,
+	TYPE_PRECEDENCE       = 100,
+	ASSIGNMENT_PRECEDENCE,
 };
 
 static Precedence precedences[] =
 {
-	[NODE_TAG_RESOLUTION]                = 14,
+	[RESOLUTION]                = 14,
 	
-	[NODE_TAG_INVOCATION]                = 13,
-	[NODE_TAG_NEGATIVE]                  = 13,
-	[NODE_TAG_NEGATION]                  = 13,
-	[NODE_TAG_NOT]                       = 13,
-	[NODE_TAG_ADDRESS]                   = 13,
-	[NODE_TAG_INDIRECTION]               = 13,
-	[NODE_TAG_JUMP]                      = 13,
-	[NODE_TAG_INFERENCE]                 = 13,
-	[NODE_TAG_RANGE]                     = 13,
+	[INVOCATION]                = 13,
+	[NEGATIVE]                  = 13,
+	[NEGATION]                  = 13,
+	[NOT]                       = 13,
+	[ADDRESS]                   = 13,
+	[INDIRECTION]               = 13,
+	[JUMP]                      = 13,
+	[INFERENCE]                 = 13,
 	
-	[NODE_TAG_MULTIPLICATION]            = 12,
-	[NODE_TAG_DIVISION]                  = 12,
-	[NODE_TAG_REMAINDER]                 = 12,
+	[MULTIPLICATION]            = 12,
+	[DIVISION]                  = 12,
+	[REMAINDER]                 = 12,
 	
-	[NODE_TAG_ADDITION]                  = 11,
-	[NODE_TAG_SUBTRACTION]               = 11,
+	[ADDITION]                  = 11,
+	[SUBTRACTION]               = 11,
 	
-	[NODE_TAG_LSH]                       = 10,
-	[NODE_TAG_RSH]                       = 10,
+	[LSH]                       = 10,
+	[RSH]                       = 10,
 	
-	[NODE_TAG_MAJORITY]                  = 9,
-	[NODE_TAG_MINORITY]                  = 9,
-	[NODE_TAG_INCLUSIVE_MAJORITY]        = 9,
-	[NODE_TAG_INCLUSIVE_MINORITY]        = 9,
+	[MAJORITY]                  = 9,
+	[MINORITY]                  = 9,
+	[INCLUSIVE_MAJORITY]        = 9,
+	[INCLUSIVE_MINORITY]        = 9,
 	
-	[NODE_TAG_EQUALITY]                  = 8,
-	[NODE_TAG_INEQUALITY]                = 8,
+	[EQUALITY]                  = 8,
+	[INEQUALITY]                = 8,
 	
-	[NODE_TAG_AND]                       = 7,
+	[AND]                       = 7,
 	
-	[NODE_TAG_XOR]                       = 6,
+	[XOR]                       = 6,
 	
-	[NODE_TAG_OR]                        = 5,
+	[OR]                        = 5,
 	
-	[NODE_TAG_CONJUNCTION]               = 4,
+	[CONJUNCTION]               = 4,
 	
-	[NODE_TAG_DISJUNCTION]               = 3,
+	[DISJUNCTION]               = 3,
 	
-	[NODE_TAG_CONDITION]                 = 2,
-	[NODE_TAG_ASSIGNMENT]                = 2,
-	[NODE_TAG_ADDITION_ASSIGNMENT]       = 2,
-	[NODE_TAG_SUBTRACTION_ASSIGNMENT]    = 2,
-	[NODE_TAG_MULTIPLICATION_ASSIGNMENT] = 2,
-	[NODE_TAG_DIVISION_ASSIGNMENT]       = 2,
-	[NODE_TAG_REMAINDER_ASSIGNMENT]      = 2,
-	[NODE_TAG_AND_ASSIGNMENT]            = 2,
-	[NODE_TAG_OR_ASSIGNMENT]             = 2,
-	[NODE_TAG_XOR_ASSIGNMENT]            = 2,
-	[NODE_TAG_LSH_ASSIGNMENT]            = 2,
-	[NODE_TAG_RSH_ASSIGNMENT]            = 2,
+	[RANGE]                     = 2,
+	[CONDITION]                 = 2,
+	[ASSIGNMENT]                = 2,
+	[ADDITION_ASSIGNMENT]       = 2,
+	[SUBTRACTION_ASSIGNMENT]    = 2,
+	[MULTIPLICATION_ASSIGNMENT] = 2,
+	[DIVISION_ASSIGNMENT]       = 2,
+	[REMAINDER_ASSIGNMENT]      = 2,
+	[AND_ASSIGNMENT]            = 2,
+	[OR_ASSIGNMENT]             = 2,
+	[XOR_ASSIGNMENT]            = 2,
+	[LSH_ASSIGNMENT]            = 2,
+	[RSH_ASSIGNMENT]            = 2,
 	
-	[NODE_TAG_LIST]                      = 1,
+	[LIST]                      = 1,
 };
 
 typedef struct Node Node;
@@ -710,21 +712,21 @@ typedef struct Node Node;
 typedef struct
 {
 	const utf8 *value;
-	uint32 size;
+	uint32      size;
 } Identifier;
 
 typedef struct
 {
 	Identifier identifier;
-	Node *type;
-	Node *assignment;
-	bit constant : 1;
+	Node      *type;
+	Node      *assignment;
+	bit        constant : 1;
 } Value;
 
 typedef struct
 {
 	Identifier identifier;
-	uint32 position;
+	uint32     position;
 } Label;
 
 typedef struct Routine Routine;
@@ -733,27 +735,25 @@ typedef struct Scope Scope;
 
 struct Scope
 {
-	// NOTE(Emhyr): the following 2 are set by the caller of `parse_scope`
-	Scope *parent;
+	Scope   *parent;
 	Routine *owner;
-
-	Value *values;
-	Label *labels;
+	Value   *values;
+	Label   *labels;
 	Routine *routines;
-	Node **statements;
-	uint32 values_count;
-	uint32 labels_count;
-	uint32 routines_count;
-	uint32 statements_count;
+	Node   **statements;
+	uint32   values_count;
+	uint32   labels_count;
+	uint32   routines_count;
+	uint32   statements_count;
 };
 
 struct Routine
 {
 	Identifier identifier;
-	Value *parameters;
-	uint32 parameters_count;
-	uint32 arguments_count;
-	Scope scope;
+	Value     *parameters;
+	uint32     parameters_count;
+	uint32     arguments_count;
+	Scope      scope;
 };
 
 typedef struct
@@ -775,35 +775,35 @@ typedef struct
 struct Node
 {
 	Node_Tag tag;
-	Range range;
+	Range    range;
 	union
 	{
 		Identifier identifier;
-		Integer integer;
-		Real real;
-		String string;
-		Node *unary;
-		Node *binary[2];
-		Node *ternary[3];
-		Value *value;
-		Scope scope;
+		Integer    integer;
+		Real       real;
+		String     string;
+		Node      *unary;
+		Node      *binary[2];
+		Node      *ternary[3];
+		Value     *value;
+		Scope      scope;
 	} data[];
 };
 
 void parse_integer(Integer *integer, Token *token, Caret *caret)
 {
-	ASSERT(token->tag == TOKEN_TAG_BINARY || token->tag == TOKEN_TAG_DIGITAL || token->tag == TOKEN_TAG_HEXADECIMAL);
+	ASSERT(token->tag == BINARY || token->tag == DIGITAL || token->tag == HEXADECIMAL);
 
 	uint8 base;
 	switch(token->tag)
 	{
-	case TOKEN_TAG_BINARY:
+	case BINARY:
 		base = 2;
 		break;
-	case TOKEN_TAG_DIGITAL:
+	case DIGITAL:
 		base = 10;
 		break;
-	case TOKEN_TAG_HEXADECIMAL:
+	case HEXADECIMAL:
 		base = 16;
 		break;
 	default:
@@ -826,7 +826,7 @@ void parse_integer(Integer *integer, Token *token, Caret *caret)
 
 void parse_real(Real *real, Token *token, Caret *caret)
 {
-	ASSERT(token->tag == TOKEN_TAG_DECIMAL);
+	ASSERT(token->tag == DECIMAL);
 	char *ending;
 	real->value = strtod(caret->source->data + token->range.beginning, &ending);
 	get_token(token, caret);
@@ -834,7 +834,7 @@ void parse_real(Real *real, Token *token, Caret *caret)
 
 void parse_string(String *string, Token *token, Caret *caret)
 {
-	ASSERT(token->tag == TOKEN_TAG_TEXT);
+	ASSERT(token->tag == TEXT);
 	const uint8 *input  = (uint8 *)caret->source->data + token->range.beginning + 1;
 	const uint8 *ending = (uint8 *)caret->source->data + token->range.ending;
 	if(input == ending) fail(caret->source, &token->range, "empty string");
@@ -895,7 +895,7 @@ void parse_string(String *string, Token *token, Caret *caret)
 
 void parse_identifier(Identifier *Identifier, Token *token, Caret *caret)
 {
-	ASSERT(token->tag == TOKEN_TAG_NAME);
+	ASSERT(token->tag == NAME);
 	Identifier->value = caret->source->data + token->range.beginning;
 	Identifier->size = token->range.ending - token->range.beginning;
 	get_token(token, caret);
@@ -910,46 +910,46 @@ Node *parse_expression(Precedence other_precedence, Token *token, Caret *caret, 
 	Node *left = 0;
 	switch(token->tag)
 	{
-	case TOKEN_TAG_BINARY:
-	case TOKEN_TAG_DIGITAL:
-	case TOKEN_TAG_HEXADECIMAL:
+	case BINARY:
+	case DIGITAL:
+	case HEXADECIMAL:
 		left = push_into_buffer(sizeof(Node) + sizeof(Integer), alignof(Node), buffer);
-		left->tag = NODE_TAG_INTEGER;
+		left->tag = INTEGER;
 		parse_integer(&left->data->integer, token, caret);
 		break;
 		// TODO(Emhyr): allow scientific and hex notation
-	case TOKEN_TAG_DECIMAL:
+	case DECIMAL:
 		left = push_into_buffer(sizeof(Node) + sizeof(Real), alignof(Node), buffer);
-		left->tag = NODE_TAG_REAL;
+		left->tag = REAL;
 		parse_real(&left->data->real, token, caret);
 		break;
-	case TOKEN_TAG_TEXT:
+	case TEXT:
 		left = push_into_buffer(sizeof(Node) + sizeof(String), alignof(Node), buffer);
-		left->tag = NODE_TAG_STRING;
+		left->tag = STRING;
 		parse_string(&left->data->string, token, caret);
 		break;
-	case TOKEN_TAG_NAME:
+	case NAME:
 		left = push_into_buffer(sizeof(Node) + sizeof(Identifier), alignof(Node), buffer);
-		left->tag = NODE_TAG_REFERENCE;
+		left->tag = REFERENCE;
 		parse_identifier(&left->data->identifier, token, caret);
 		break;
-	case TOKEN_TAG_LEFT_PARENTHESIS:
+	case LEFT_PARENTHESIS:
 		left = push_into_buffer(sizeof(Node) + sizeof(Node *), alignof(Node), buffer);
-		left->tag = NODE_TAG_SUBEXPRESSION;
+		left->tag = SUBEXPRESSION;
 		get_token(token, caret);
 		left->data->unary = parse_expression(0, token, caret, buffer);
-		if(token->tag == TOKEN_TAG_RIGHT_PARENTHESIS) get_token(token, caret);
-		else fail(caret->source, &token->range, "unterminated scope; expected `%c`", left->tag == NODE_TAG_SUBEXPRESSION ? ')' : ']');
+		if(token->tag == RIGHT_PARENTHESIS) get_token(token, caret);
+		else fail(caret->source, &token->range, "unterminated scope; expected `%c`", left->tag == SUBEXPRESSION ? ')' : ']');
 		break;
 
 		Node_Tag left_tag;
-	case TOKEN_TAG_HYPHEN_MINUS:      left_tag = NODE_TAG_NEGATIVE;    goto unary;
-	case TOKEN_TAG_EXCLAMATION_MARK:  left_tag = NODE_TAG_NEGATION;    goto unary;
-	case TOKEN_TAG_TILDE:             left_tag = NODE_TAG_NOT;         goto unary;
-	case TOKEN_TAG_AT_SIGN:           left_tag = NODE_TAG_ADDRESS;     goto unary;
-	case TOKEN_TAG_BACKSLASH:         left_tag = NODE_TAG_INDIRECTION; goto unary;
-	case TOKEN_TAG_CIRCUMFLEX_ACCENT: left_tag = NODE_TAG_JUMP;        goto unary;
-	case TOKEN_TAG_APOSTROPHE:        left_tag = NODE_TAG_INFERENCE;   goto unary;
+	case HYPHEN_MINUS:      left_tag = NEGATIVE;    goto unary;
+	case EXCLAMATION_MARK:  left_tag = NEGATION;    goto unary;
+	case TILDE:             left_tag = NOT;         goto unary;
+	case AT_SIGN:           left_tag = ADDRESS;     goto unary;
+	case BACKSLASH:         left_tag = INDIRECTION; goto unary;
+	case CIRCUMFLEX_ACCENT: left_tag = JUMP;        goto unary;
+	case APOSTROPHE:        left_tag = INFERENCE;   goto unary;
 	unary:
 		left = push_into_buffer(sizeof(Node) + sizeof(Node *), alignof(Node), buffer);
 		left->tag = left_tag;
@@ -957,10 +957,11 @@ Node *parse_expression(Precedence other_precedence, Token *token, Caret *caret, 
 		left->data->unary = parse_expression(precedences[left_tag], token, caret, buffer);
 		break;
 
-	case TOKEN_TAG_COLON:
-	case TOKEN_TAG_SEMICOLON:
-	case TOKEN_TAG_RIGHT_PARENTHESIS:
-	case TOKEN_TAG_RIGHT_CURLY_BRACKET:
+	case COLON:
+	case SEMICOLON:
+	case RIGHT_PARENTHESIS:
+	case LEFT_CURLY_BRACKET:
+	case RIGHT_CURLY_BRACKET:
 		goto finished;
 
 	default:
@@ -978,57 +979,61 @@ Node *parse_expression(Precedence other_precedence, Token *token, Caret *caret, 
 		switch(token->tag)
 		{
 			Node_Tag right_tag;
-		case TOKEN_TAG_COMMA:                           right_tag = NODE_TAG_LIST;                      goto binary;
-		case TOKEN_TAG_FULL_STOP_2:                     right_tag = NODE_TAG_RANGE;                     goto binary;
-		case TOKEN_TAG_FULL_STOP:                       right_tag = NODE_TAG_RESOLUTION;                goto binary;
-		case TOKEN_TAG_PLUS_SIGN:                       right_tag = NODE_TAG_ADDITION;                  goto binary;
-		case TOKEN_TAG_HYPHEN_MINUS:                    right_tag = NODE_TAG_SUBTRACTION;               goto binary;
-		case TOKEN_TAG_ASTERISK:                        right_tag = NODE_TAG_MULTIPLICATION;            goto binary;
-		case TOKEN_TAG_SLASH:                           right_tag = NODE_TAG_DIVISION;                  goto binary;
-		case TOKEN_TAG_PERCENT_SIGN:                    right_tag = NODE_TAG_REMAINDER;                 goto binary;
-		case TOKEN_TAG_AMPERSAND:                       right_tag = NODE_TAG_AND;                       goto binary;
-		case TOKEN_TAG_VERTICAL_BAR:                    right_tag = NODE_TAG_OR;                        goto binary;
-		case TOKEN_TAG_CIRCUMFLEX_ACCENT:               right_tag = NODE_TAG_XOR;                       goto binary;
-		case TOKEN_TAG_LESS_THAN_SIGN_2:                right_tag = NODE_TAG_LSH;                       goto binary;
-		case TOKEN_TAG_GREATER_THAN_SIGN_2:             right_tag = NODE_TAG_RSH;                       goto binary;
-		case TOKEN_TAG_AMPERSAND_2:                     right_tag = NODE_TAG_CONJUNCTION;               goto binary;
-		case TOKEN_TAG_VERTICAL_BAR_2:                  right_tag = NODE_TAG_DISJUNCTION;               goto binary;
-		case TOKEN_TAG_EQUAL_SIGN_2:                    right_tag = NODE_TAG_EQUALITY;                  goto binary;
-		case TOKEN_TAG_EXCLAMATION_MARK_EQUAL_SIGN:     right_tag = NODE_TAG_INEQUALITY;                goto binary;
-		case TOKEN_TAG_GREATER_THAN_SIGN:               right_tag = NODE_TAG_MAJORITY;                  goto binary;
-		case TOKEN_TAG_LESS_THAN_SIGN:                  right_tag = NODE_TAG_MINORITY;                  goto binary;
-		case TOKEN_TAG_GREATER_THAN_SIGN_EQUAL_SIGN:    right_tag = NODE_TAG_INCLUSIVE_MAJORITY;        goto binary;
-		case TOKEN_TAG_LESS_THAN_SIGN_EQUAL_SIGN:       right_tag = NODE_TAG_INCLUSIVE_MINORITY;        goto binary;
-		case TOKEN_TAG_EQUAL_SIGN:                      right_tag = NODE_TAG_ASSIGNMENT;                goto binary;
-		case TOKEN_TAG_PLUS_SIGN_EQUAL_SIGN:            right_tag = NODE_TAG_ADDITION_ASSIGNMENT;       goto binary;
-		case TOKEN_TAG_HYPHEN_MINUS_EQUAL_SIGN:         right_tag = NODE_TAG_SUBTRACTION_ASSIGNMENT;    goto binary;
-		case TOKEN_TAG_ASTERISK_EQUAL_SIGN:             right_tag = NODE_TAG_MULTIPLICATION_ASSIGNMENT; goto binary;
-		case TOKEN_TAG_SLASH_EQUAL_SIGN:                right_tag = NODE_TAG_DIVISION_ASSIGNMENT;       goto binary;
-		case TOKEN_TAG_PERCENT_SIGN_EQUAL_SIGN:         right_tag = NODE_TAG_REMAINDER_ASSIGNMENT;      goto binary;
-		case TOKEN_TAG_AMPERSAND_EQUAL_SIGN:            right_tag = NODE_TAG_AND_ASSIGNMENT;            goto binary;
-		case TOKEN_TAG_VERTICAL_BAR_EQUAL_SIGN:         right_tag = NODE_TAG_OR_ASSIGNMENT;             goto binary;
-		case TOKEN_TAG_CIRCUMFLEX_ACCENT_EQUAL_SIGN:    right_tag = NODE_TAG_XOR_ASSIGNMENT;            goto binary;
-		case TOKEN_TAG_LESS_THAN_SIGN_2_EQUAL_SIGN:     right_tag = NODE_TAG_LSH_ASSIGNMENT;            goto binary;
-		case TOKEN_TAG_GREATER_THAN_SIGN_2_EQUAL_SIGN:  right_tag = NODE_TAG_RSH_ASSIGNMENT;            goto binary;
-		default:                                        right_tag = NODE_TAG_INVOCATION;                goto binary;
-		case TOKEN_TAG_QUESTION_MARK:                   right_tag = NODE_TAG_CONDITION;                 goto binary;
+		case COMMA:                           right_tag = LIST;                      goto binary;
+		case FULL_STOP:                       right_tag = RESOLUTION;                goto binary;
+		case FULL_STOP_2:                     right_tag = RANGE;                     goto binary;
+		case PLUS_SIGN:                       right_tag = ADDITION;                  goto binary;
+		case HYPHEN_MINUS:                    right_tag = SUBTRACTION;               goto binary;
+		case ASTERISK:                        right_tag = MULTIPLICATION;            goto binary;
+		case SLASH:                           right_tag = DIVISION;                  goto binary;
+		case PERCENT_SIGN:                    right_tag = REMAINDER;                 goto binary;
+		case AMPERSAND:                       right_tag = AND;                       goto binary;
+		case VERTICAL_BAR:                    right_tag = OR;                        goto binary;
+		case CIRCUMFLEX_ACCENT:               right_tag = XOR;                       goto binary;
+		case LESS_THAN_SIGN_2:                right_tag = LSH;                       goto binary;
+		case GREATER_THAN_SIGN_2:             right_tag = RSH;                       goto binary;
+		case AMPERSAND_2:                     right_tag = CONJUNCTION;               goto binary;
+		case VERTICAL_BAR_2:                  right_tag = DISJUNCTION;               goto binary;
+		case EQUAL_SIGN_2:                    right_tag = EQUALITY;                  goto binary;
+		case EXCLAMATION_MARK_EQUAL_SIGN:     right_tag = INEQUALITY;                goto binary;
+		case GREATER_THAN_SIGN:               right_tag = MAJORITY;                  goto binary;
+		case LESS_THAN_SIGN:                  right_tag = MINORITY;                  goto binary;
+		case GREATER_THAN_SIGN_EQUAL_SIGN:    right_tag = INCLUSIVE_MAJORITY;        goto binary;
+		case LESS_THAN_SIGN_EQUAL_SIGN:       right_tag = INCLUSIVE_MINORITY;        goto binary;
+		case EQUAL_SIGN:                      right_tag = ASSIGNMENT;                goto binary;
+		case PLUS_SIGN_EQUAL_SIGN:            right_tag = ADDITION_ASSIGNMENT;       goto binary;
+		case HYPHEN_MINUS_EQUAL_SIGN:         right_tag = SUBTRACTION_ASSIGNMENT;    goto binary;
+		case ASTERISK_EQUAL_SIGN:             right_tag = MULTIPLICATION_ASSIGNMENT; goto binary;
+		case SLASH_EQUAL_SIGN:                right_tag = DIVISION_ASSIGNMENT;       goto binary;
+		case PERCENT_SIGN_EQUAL_SIGN:         right_tag = REMAINDER_ASSIGNMENT;      goto binary;
+		case AMPERSAND_EQUAL_SIGN:            right_tag = AND_ASSIGNMENT;            goto binary;
+		case VERTICAL_BAR_EQUAL_SIGN:         right_tag = OR_ASSIGNMENT;             goto binary;
+		case CIRCUMFLEX_ACCENT_EQUAL_SIGN:    right_tag = XOR_ASSIGNMENT;            goto binary;
+		case LESS_THAN_SIGN_2_EQUAL_SIGN:     right_tag = LSH_ASSIGNMENT;            goto binary;
+		case GREATER_THAN_SIGN_2_EQUAL_SIGN:  right_tag = RSH_ASSIGNMENT;            goto binary;
+		default:                              right_tag = INVOCATION;                goto binary;
+		case QUESTION_MARK:                   right_tag = CONDITION;                 goto binary;
 		binary:
-			if(other_precedence == PRECEDENCE_TYPE && (right_tag >= NODE_TAG_ASSIGNMENT && right_tag <= NODE_TAG_RSH_ASSIGNMENT || right_tag == NODE_TAG_LIST)) goto finished;
-			if(other_precedence == PRECEDENCE_ASSIGNMENT)
+			if(other_precedence == TYPE_PRECEDENCE)
 			{
-				if(right_tag == NODE_TAG_LIST) goto finished;
+				if(right_tag >= ASSIGNMENT && right_tag <= RSH_ASSIGNMENT || right_tag == LIST) goto finished;
+				else other_precedence = 0;
+			}
+			else if(other_precedence == ASSIGNMENT_PRECEDENCE)
+			{
+				if(right_tag == LIST) goto finished;
 				else other_precedence = 0;
 			}
 			Precedence right_precedence = precedences[right_tag];
 			if(right_precedence <= other_precedence) goto finished;
-			if(right_tag != NODE_TAG_INVOCATION) get_token(token, caret);
-			right = push_into_buffer(sizeof(Node) + (right_tag == NODE_TAG_CONDITION ? sizeof(Node *[3]) : sizeof(Node *[2])), alignof(Node), buffer);
+			if(right_tag != INVOCATION) get_token(token, caret);
+			right = push_into_buffer(sizeof(Node) + (right_tag == CONDITION ? sizeof(Node *[3]) : sizeof(Node *[2])), alignof(Node), buffer);
 			right->tag = right_tag;
 			right->data->binary[0] = left;
-			right->data->binary[1] = parse_expression(right_tag == NODE_TAG_CONDITION ? 0 : right_precedence, token, caret, buffer);
-			if(right_tag == NODE_TAG_CONDITION)
+			right->data->binary[1] = parse_expression(right_tag == CONDITION ? 0 : right_precedence, token, caret, buffer);
+			if(right_tag == CONDITION)
 			{
-				if(token->tag == TOKEN_TAG_EXCLAMATION_MARK)
+				if(token->tag == EXCLAMATION_MARK)
 				{
 					get_token(token, caret);
 					right->data->ternary[2] = parse_expression(right_precedence, token, caret, buffer);
@@ -1037,14 +1042,15 @@ Node *parse_expression(Precedence other_precedence, Token *token, Caret *caret, 
 			}
 			break;
 			
-		case TOKEN_TAG_COLON:
-		case TOKEN_TAG_SEMICOLON:
-		case TOKEN_TAG_RIGHT_PARENTHESIS:
-		case TOKEN_TAG_RIGHT_CURLY_BRACKET:
-		case TOKEN_TAG_EXCLAMATION_MARK:
+		case COLON:
+		case SEMICOLON:
+		case RIGHT_PARENTHESIS:
+		case LEFT_CURLY_BRACKET:
+		case RIGHT_CURLY_BRACKET:
+		case EXCLAMATION_MARK:
 			goto finished;
 
-		case TOKEN_TAG_ETX:
+		case ETX:
 			fail(caret->source, &token->range, "unfinished expression");
 		}
 
@@ -1061,27 +1067,27 @@ finished:
 
 void parse_value(Value *value, Token *token, Caret *caret, Buffer *buffer)
 {
-	ASSERT(token->tag == TOKEN_TAG_NAME);
+	ASSERT(token->tag == NAME);
 	parse_identifier(&value->identifier, token, caret);
-	if(token->tag != TOKEN_TAG_COLON) fail(caret->source, &token->range, "expected `:`");
+	if(token->tag != COLON) fail(caret->source, &token->range, "expected `:`");
 	get_token(token, caret);
 	switch(token->tag)
 	{
-	case TOKEN_TAG_EQUAL_SIGN:
-	case TOKEN_TAG_COLON:
+	case EQUAL_SIGN:
+	case COLON:
 		break;
 	default:
-		value->type = parse_expression(PRECEDENCE_TYPE, token, caret, buffer);
+		value->type = parse_expression(TYPE_PRECEDENCE, token, caret, buffer);
 		break;
 	}
 	value->constant = 0;
 	switch(token->tag)
 	{
-	case TOKEN_TAG_COLON:
+	case COLON:
 		value->constant = 1;
-	case TOKEN_TAG_EQUAL_SIGN:
+	case EQUAL_SIGN:
 		get_token(token, caret);
-		value->assignment = parse_expression(PRECEDENCE_ASSIGNMENT, token, caret, buffer);
+		value->assignment = parse_expression(ASSIGNMENT_PRECEDENCE, token, caret, buffer);
 		break;
 	default:
 		if(!value->type) fail(caret->source, &token->range, "untyped and uninitialized value");
@@ -1089,9 +1095,13 @@ void parse_value(Value *value, Token *token, Caret *caret, Buffer *buffer)
 	}
 }
 
-void parse_scope(Scope *scope, Token *token, Caret *caret)
+void parse_scope(Scope *scope, Scope *parent, Routine *owner, Token *token, Caret *caret)
 {
-	ASSERT(token->tag == TOKEN_TAG_LEFT_CURLY_BRACKET);
+	ASSERT(token->tag == LEFT_CURLY_BRACKET);
+
+	scope->parent = parent;
+	scope->owner = owner;
+	
 	// TODO(Emhyr): ditch `allocate_buffer`
 	Buffer *values = allocate_buffer(GIBIBYTE(1), system_page_size);
 	Buffer *labels = allocate_buffer(GIBIBYTE(1), system_page_size);
@@ -1113,8 +1123,8 @@ void parse_scope(Scope *scope, Token *token, Caret *caret)
 		Caret onsetting_caret = *caret;
 		switch(onsetting_token.tag)
 		{
-		case TOKEN_TAG_NAME:
-			if(get_token(token, caret) == TOKEN_TAG_COLON)
+		case NAME:
+			if(get_token(token, caret) == COLON)
 			{
 				// TODO(Emhyr): parse modules
 				*token = onsetting_token;
@@ -1125,7 +1135,7 @@ void parse_scope(Scope *scope, Token *token, Caret *caret)
 				if(value->assignment && !value->constant)
 				{
 					node = push_into_buffer(sizeof(Node) + sizeof(Value *), alignof(Node), buffer);
-					node->tag = NODE_TAG_VALUE;
+					node->tag = VALUE;
 					node->data->value = value;
 					goto statement;
 				}
@@ -1138,12 +1148,12 @@ void parse_scope(Scope *scope, Token *token, Caret *caret)
 			}
 			continue;
 	
-		case TOKEN_TAG_FULL_STOP:
-			if(get_token(token, caret) == TOKEN_TAG_NAME)
+		case FULL_STOP:
+			if(get_token(token, caret) == NAME)
 			{
 				Identifier identifier;
 				parse_identifier(&identifier, token, caret);
-				if(token->tag == TOKEN_TAG_COLON)
+				if(token->tag == COLON)
 				{
 					Routine *routine = push_into_buffer(sizeof(Routine), alignof(Routine), routines);
 					++scope->routines_count;
@@ -1151,7 +1161,7 @@ void parse_scope(Scope *scope, Token *token, Caret *caret)
 					get_token(token, caret);
 					Value *parameter;
 					Buffer *parameters = 0;
-					if(token->tag == TOKEN_TAG_LEFT_PARENTHESIS)
+					if(token->tag == LEFT_PARENTHESIS)
 					{
 						parameters = allocate_buffer(MEBIBYTE(1), system_page_size);
 						get_token(token, caret);
@@ -1159,15 +1169,15 @@ void parse_scope(Scope *scope, Token *token, Caret *caret)
 						{
 							switch(token->tag)
 							{
-							case TOKEN_TAG_NAME:
+							case NAME:
 								parameter = push_into_buffer(sizeof(Value), alignof(Value), parameters);
 								++routine->parameters_count;
 								parse_value(parameter, token, caret, buffer);
 								break;
-							case TOKEN_TAG_COMMA:
+							case COMMA:
 								get_token(token, caret);
 								break;
-							case TOKEN_TAG_RIGHT_PARENTHESIS:
+							case RIGHT_PARENTHESIS:
 								get_token(token, caret);
 								goto finished_arguments;
 							default:
@@ -1180,8 +1190,8 @@ void parse_scope(Scope *scope, Token *token, Caret *caret)
 					routine->arguments_count = routine->parameters_count;
 					switch(token->tag)
 					{
-					case TOKEN_TAG_SEMICOLON:
-					case TOKEN_TAG_LEFT_CURLY_BRACKET:
+					case SEMICOLON:
+					case LEFT_CURLY_BRACKET:
 						break;
 					default:
 						if(!parameters) parameters = allocate_buffer(MEBIBYTE(1), system_page_size);
@@ -1189,15 +1199,15 @@ void parse_scope(Scope *scope, Token *token, Caret *caret)
 						{
 							switch(token->tag)
 							{
-							case TOKEN_TAG_NAME:
+							case NAME:
 								parameter = push_into_buffer(sizeof(Value), alignof(Value), parameters);
 								++routine->parameters_count;
 								parse_value(parameter, token, caret, buffer);
 								break;
-							case TOKEN_TAG_COMMA:
+							case COMMA:
 								get_token(token, caret);
 								break;
-							case TOKEN_TAG_LEFT_CURLY_BRACKET:
+							case LEFT_CURLY_BRACKET:
 								goto finished_results;
 							default:
 								fail(caret->source, &token->range, "expected name, `,`, or `{`");
@@ -1208,7 +1218,7 @@ void parse_scope(Scope *scope, Token *token, Caret *caret)
 						break;
 					}
 					routine->parameters = (Value *)parameters->base;
-					if(token->tag == TOKEN_TAG_LEFT_CURLY_BRACKET) parse_scope(&routine->scope, token, caret);
+					if(token->tag == LEFT_CURLY_BRACKET) parse_scope(&routine->scope, scope, routine, token, caret);
 				}
 				else
 				{
@@ -1221,10 +1231,10 @@ void parse_scope(Scope *scope, Token *token, Caret *caret)
 			else fail(caret->source, &token->range, "unexpected token; expected name");
 			continue;
 
-		case TOKEN_TAG_LEFT_CURLY_BRACKET:
+		case LEFT_CURLY_BRACKET:
 			node = push_into_buffer(sizeof(Node) + sizeof(Scope), alignof(Node), buffer);
-			node->tag = NODE_TAG_SCOPE;
-			parse_scope(&node->data->scope, token, caret);
+			node->tag = SCOPE;
+			parse_scope(&node->data->scope, scope, 0, token, caret);
 			break;
 
 		default:
@@ -1232,10 +1242,10 @@ void parse_scope(Scope *scope, Token *token, Caret *caret)
 			node = parse_expression(0, token, caret, buffer);
 			break;
 	
-		case TOKEN_TAG_SEMICOLON:
+		case SEMICOLON:
 			get_token(token, caret);
 			continue;
-		case TOKEN_TAG_RIGHT_CURLY_BRACKET:
+		case RIGHT_CURLY_BRACKET:
 			get_token(token, caret);
 			goto finished;
 		}
@@ -1249,16 +1259,148 @@ void parse_scope(Scope *scope, Token *token, Caret *caret)
 finished:
 }
 
+typedef enum
+{
+	VOID,
+	UINT8,
+	UINT16,
+	UINT32,
+	UINT64,
+	SINT8,
+	SINT16,
+	SINT32,
+	SINT64,
+	REAL32,
+	REAL64,
+	POINTER,
+	ARRAY,
+	TUPLE,
+} Type_Class;
+
+typedef struct Type Type;
+
+typedef struct
+{
+	Type *subtype;
+} Address;
+
+typedef struct
+{
+	Type  *subtype;
+	uint64 count;
+} Array;
+
+typedef struct
+{
+	Type **subtypes;
+	uint64 count;
+} Tuple;
+
+struct Type
+{
+	Type_Class class;
+	union
+	{
+		Address pointer;
+		Array   array;
+		Tuple   tuple;
+	} data[];
+};
+
+struct
+{
+	Type uint8;
+	Type uint16;
+	Type uint32;
+	Type uint64;
+	Type sint8;
+	Type sint16;
+	Type sint32;
+	Type sint64;
+	Type real32;
+	Type real64;
+} primitives =
+{
+	{UINT8},
+	{UINT16},
+	{UINT32},
+	{UINT64},
+	{SINT8},
+	{SINT16},
+	{SINT32},
+	{SINT64},
+	{REAL32},
+	{REAL64},
+};
+
+typedef struct
+{
+	Type *pointers;
+	Type *arrays;
+	Type *tuples;
+	uint32 pointers_count;
+	uint32 arrays_count;
+	uint32 tuples_count;
+} Type_Table;
+
+typedef struct
+{
+	Buffer *pointers;
+	Buffer *arrays;
+	Buffer *tuples;
+} Type_Buffers;
+
+Type *check_expression(Node *node, Type_Table *table, Buffer *buffer)
+{
+	Type *type = 0;
+	switch(node->tag)
+	{
+	case INTEGER:
+		     if(node->data->integer.value <= UMAXOF(uint8))  type = &primitives.uint8;
+		else if(node->data->integer.value <= UMAXOF(uint16)) type = &primitives.uint16;
+		else if(node->data->integer.value <= UMAXOF(uint32)) type = &primitives.uint32;
+		else                                                 type = &primitives.uint64;
+		break;
+	case REAL:
+		type = &primitives.real32;
+		break;
+	case STRING:
+		{
+			Array comparitor =
+			{
+				.subtype = &primitives.uint8,
+				.count   = node->value->string.size,
+			};
+			bit found = 0;
+			for(uint32 i = 0; i < table->arrays_count; ++i)
+			{
+				Array *array = table->arrays + i;
+				found = !compare_memory(array, &comparitor, sizeof(Array));
+			}
+			if(!found)
+			{
+				type = push_into_buffer(sizeof(Array), alignof(Type), buffer);
+			}
+		}
+		break;
+	case REFERENCE:
+		break;
+	default:
+		UNIMPLEMENTED();
+	}
+	return type;
+}
+
 typedef struct Module Module;
 
 struct Module
 {
-	Value *values;
-	Label *labels;
+	Value   *values;
+	Label   *labels;
 	Routine *routines;
-	uint32 values_count;
-	uint32 labels_count;
-	uint32 routines_count;
+	uint32   values_count;
+	uint32   labels_count;
+	uint32   routines_count;
 };
 
 void dump(Node *);
@@ -1359,49 +1501,50 @@ void dump(Node *node)
 	
 		switch(node->tag)
 		{
-		case NODE_TAG_SUBEXPRESSION:
-		case NODE_TAG_NEGATIVE:
-		case NODE_TAG_NEGATION:
-		case NODE_TAG_NOT:
-		case NODE_TAG_ADDRESS:
-		case NODE_TAG_INDIRECTION:
-		case NODE_TAG_JUMP:
-		case NODE_TAG_INFERENCE:
+		case SUBEXPRESSION:
+		case NEGATIVE:
+		case NEGATION:
+		case NOT:
+		case ADDRESS:
+		case INDIRECTION:
+		case JUMP:
+		case INFERENCE:
 			dump(node->data->unary);
 			break;
-	
-		case NODE_TAG_INVOCATION:
-		case NODE_TAG_LIST:
-		case NODE_TAG_RESOLUTION:
-		case NODE_TAG_ADDITION:
-		case NODE_TAG_SUBTRACTION:
-		case NODE_TAG_MULTIPLICATION:
-		case NODE_TAG_DIVISION:
-		case NODE_TAG_REMAINDER:
-		case NODE_TAG_AND:
-		case NODE_TAG_OR:
-		case NODE_TAG_XOR:
-		case NODE_TAG_LSH:
-		case NODE_TAG_RSH:
-		case NODE_TAG_CONJUNCTION:
-		case NODE_TAG_DISJUNCTION:
-		case NODE_TAG_EQUALITY:
-		case NODE_TAG_INEQUALITY:
-		case NODE_TAG_MAJORITY:
-		case NODE_TAG_MINORITY:
-		case NODE_TAG_INCLUSIVE_MAJORITY:
-		case NODE_TAG_INCLUSIVE_MINORITY:
-		case NODE_TAG_ASSIGNMENT:
-		case NODE_TAG_ADDITION_ASSIGNMENT:
-		case NODE_TAG_SUBTRACTION_ASSIGNMENT:
-		case NODE_TAG_MULTIPLICATION_ASSIGNMENT:
-		case NODE_TAG_DIVISION_ASSIGNMENT:
-		case NODE_TAG_REMAINDER_ASSIGNMENT:
-		case NODE_TAG_AND_ASSIGNMENT:
-		case NODE_TAG_OR_ASSIGNMENT:
-		case NODE_TAG_XOR_ASSIGNMENT:
-		case NODE_TAG_LSH_ASSIGNMENT:
-		case NODE_TAG_RSH_ASSIGNMENT:
+
+		case INVOCATION:
+		case LIST:
+		case RANGE:
+		case RESOLUTION:
+		case ADDITION:
+		case SUBTRACTION:
+		case MULTIPLICATION:
+		case DIVISION:
+		case REMAINDER:
+		case AND:
+		case OR:
+		case XOR:
+		case LSH:
+		case RSH:
+		case CONJUNCTION:
+		case DISJUNCTION:
+		case EQUALITY:
+		case INEQUALITY:
+		case MAJORITY:
+		case MINORITY:
+		case INCLUSIVE_MAJORITY:
+		case INCLUSIVE_MINORITY:
+		case ASSIGNMENT:
+		case ADDITION_ASSIGNMENT:
+		case SUBTRACTION_ASSIGNMENT:
+		case MULTIPLICATION_ASSIGNMENT:
+		case DIVISION_ASSIGNMENT:
+		case REMAINDER_ASSIGNMENT:
+		case AND_ASSIGNMENT:
+		case OR_ASSIGNMENT:
+		case XOR_ASSIGNMENT:
+		case LSH_ASSIGNMENT:
+		case RSH_ASSIGNMENT:
 			print("[");
 			dump(node->data->binary[0]);
 			print(",");
@@ -1409,7 +1552,7 @@ void dump(Node *node)
 			print("]");
 			break;
 	
-		case NODE_TAG_CONDITION:
+		case CONDITION:
 			print("[");
 			dump(node->data->ternary[0]);
 			print(",");
@@ -1419,29 +1562,28 @@ void dump(Node *node)
 			print("]");
 			break;
 
-		case NODE_TAG_VALUE:
+		case VALUE:
 			dump_value(node->data->value);
 			break;
-		case NODE_TAG_SCOPE:
+		case SCOPE:
 			dump_scope(&node->data->scope);
 			break;
 
-		case NODE_TAG_INTEGER:
+		case INTEGER:
 			print("%lu", node->data->integer.value);
 			break;
-		case NODE_TAG_REAL:
+		case REAL:
 			print("%f", node->data->real.value);
 			break;
-		case NODE_TAG_STRING:
+		case STRING:
 			print("\"%.*s\"", node->data->string.size, node->data->string.value);
 			break;
-		case NODE_TAG_REFERENCE:
+		case REFERENCE:
 			print("\"%.*s\"", node->data->identifier.size, node->data->identifier.value);
 			break;
 
 		default:
-			ASSERT(!"UNIMPLEMENTED");
-			UNREACHABLE();
+			UNIMPLEMENTED();
 		}
 	}
 	print("}");
@@ -1460,18 +1602,18 @@ int start(int argc, utf8 *argv[])
 		get_token(&token, &caret);
 #if 1
 		Scope Scope;
-		parse_scope(&Scope, &token, &caret);
+		parse_scope(&Scope, 0, 0, &token, &caret);
 		dump_scope(&Scope);
 #else
 		buffer *buffer = allocate_buffer(GIBIBYTE(1), system_page_size);
 		print("{\"statements\":[");
-		while(token.tag != TOKEN_TAG_ETX)
+		while(token.tag != ETX)
 		{
 			node *node = parse_expression(0, &token, &caret, buffer);
 			dump(node);
 			print(",\n");
-			//report(SEVERITY_VERBOSE, &source, &node->range, "%s", representations_of_node_tags[node->tag]);
-			if(token.tag == TOKEN_TAG_SEMICOLON) get_token(&token, &caret);
+			//report(VERBOSE, &source, &node->range, "%s", representations_of_node_tags[node->tag]);
+			if(token.tag == SEMICOLON) get_token(&token, &caret);
 		}
 		print("]}");
 #endif
@@ -1641,4 +1783,5 @@ static void *push_into_buffer(uint32 size, uint32 alignment, Buffer *buffer)
 	buffer->mass += size;
 	return result;
 }
+
 
