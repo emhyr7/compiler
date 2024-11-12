@@ -26,7 +26,8 @@ static void win32_display_last_error(void)
 	DWORD last_error = GetLastError();
 	LPVOID message;
 	FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, 0, last_error, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPWSTR)&message, 0, 0);
-	MessageBoxW(0, message, L"Error", MB_OK);
+	wprintf(L"system failure: %s", message);
+	//MessageBoxW(0, message, L"Error", MB_OK);
 	LocalFree(message);
 }
 

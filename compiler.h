@@ -27,7 +27,18 @@ typedef __INT64_TYPE__ sint64;
 typedef float  real32;
 typedef double real64;
 
+typedef uint8  ubyte;
+typedef uint16 uhalf;
+typedef uint32 uword;
+typedef uint64 ulong;
+
+typedef sint8  sbyte;
+typedef sint16 shalf;
+typedef sint32 sword;
+typedef sint64 slong;
+
 typedef uint8 bit;
+typedef uint8 byte;
 
 typedef char   utf8;
 typedef uint32 utf32;

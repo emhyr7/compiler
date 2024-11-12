@@ -2,56 +2,59 @@
 
 #define UNIMPLEMENTED() ({ ASSERT(!"unimplemented"); UNREACHABLE(); })
 
-#define KIBIBYTE(x) ((uint64)(x) << 10)
+#define KIBIBYTE(x) ((ulong)(x) << 10)
 #define MEBIBYTE(x) (KIBIBYTE(x) << 10)
 #define GIBIBYTE(x) (MEBIBYTE(x) << 10)
 
 #define UMAXOF(type) ((type)-1)
 
-uint32 format_v(utf8 *buffer, uint32 size, const utf8 *format, vargs vargs);
-uint32 format(utf8 *buffer, uint32 size, const utf8 *format, ...);
+#define MINIMUM(a, b) ((a) <= (b) ? (a) : (b))
+
+ulong format_v(utf8 *buffer, ulong size, const utf8 *format, vargs vargs);
+ulong format(utf8 *buffer, ulong size, const utf8 *format, ...);
 void print_v(const utf8 *format, vargs vargs);
 void print(const utf8 *format, ...);
 
-uint8 decode_utf8(utf32 *character, const utf8 bytes[4]);
+ubyte decode_utf8(utf32 *character, const utf8 bytes[4]);
 
-void copy_memory(void *left, const void *right, uint32 size);
-void move_memory(void *left, const void *right, uint32 size);
-void fill_memory(void *buffer, uint32 size, uint8 Value);
-void zero_memory(void *buffer, uint32 size);
-sint16 compare_memory(const void *left, const void *right, uint32 size);
+void copy_memory(void *left, const void *right, ulong size);
+void move_memory(void *left, const void *right, ulong size);
+void fill_memory(void *buffer, ulong size, ubyte value);
+void zero_memory(void *buffer, ulong size);
 
-uint64 get_size_of_string(const utf8 *String);
+shalf compare_memory(const void *left, const void *right, ulong size);
 
-constexpr uint32 universal_alignment = alignof(long double);
+ulong get_size_of_string(const utf8 *String);
 
-uint32 get_backward_alignment(uint64 address, uint32 alignment);
-uint32 get_forward_alignment(uint64 address, uint32 alignment);
+constexpr uword universal_alignment = alignof(long double);
 
-typedef struct
+ulong get_backward_alignment(ulong address, ulong alignment);
+ulong get_forward_alignment(ulong address, ulong alignment);
+
+struct buffer
 {
-	uint8 *memory;
-	uint32 reservation_size;
-	uint32 commission_rate;
-	uint32 commission_size;
-	uint32 mass;
+	ubyte *memory;
+	uword  reservation_size;
+	uword  commission_rate;
+	uword  commission_size;
+	uword  mass;
 
-	alignas(universal_alignment) uint8 base[];
-} Buffer;
+	alignas(universal_alignment) ubyte base[];
+};
 
-Buffer *allocate_buffer(uint32 reservation_size, uint32 commission_rate);
-void deallocate_buffer(Buffer *buffer);
-void *push_into_buffer(uint32 size, uint32 alignment, Buffer *buffer);
+struct buffer *allocate_buffer  (uword reservation_size, uword commission_rate);
+void           deallocate_buffer(struct buffer *buffer);
+void          *push_into_buffer (uword size, uword alignment, struct buffer *buffer);
 
-typedef struct
+struct source
 {
 	const utf8 *path;
 	utf8       *data;
-	uint32      data_size;
-	uint16      path_size;
-} Source;
+	ulong       data_size;
+	uhalf       path_size;
+};
 
-static void load_source(Source *source, const utf8 *path)
+static void load_source(struct source *source, const utf8 *path)
 {
 	source->path = path;
 	source->path_size = get_size_of_string(source->path);
@@ -62,31 +65,31 @@ static void load_source(Source *source, const utf8 *path)
 	close_file(file);
 }
 
-typedef struct
+struct range
 {
-	uint32 beginning;
-	uint32 ending;
-	uint32 row;
-	uint32 column;
-} Range;
+	ulong beginning;
+	ulong ending;
+	ulong row;
+	ulong column;
+};
 
-typedef struct
+struct location
 {
-	uint32 position;
-	uint32 row;
-	uint32 column;
-} Location;
+	ulong position;
+	ulong row;
+	ulong column;
+};
 
-typedef struct
+struct caret
 {
-	const Source *source;
-	Location      location;
-	utf32         character;
-	uint8         increment;
-} Caret;
+	const struct source *source;
+	struct location      location;
+	utf32                character;
+	ubyte                increment;
+};
 
 // NOTE(Emhyr): didn't feel like using X macros :/. fingers hurt
-typedef enum : uint8
+enum token_tag : ubyte
 {
 	ETX                  = '\3',
 	EXCLAMATION_MARK     = '!',
@@ -144,7 +147,7 @@ typedef enum : uint8
 	CIRCUMFLEX_ACCENT_EQUAL_SIGN,
 	VERTICAL_BAR_EQUAL_SIGN,
 	VERTICAL_BAR_2,
-} Token_Tag;
+};
 
 static utf8 *representations_of_token_tags[] =
 {
@@ -206,11 +209,11 @@ static utf8 *representations_of_token_tags[] =
 	[VERTICAL_BAR_2]                 = "`||`"
 };
 
-typedef struct
+struct token
 {
-	Token_Tag tag;
-	Range     range;
-} Token;
+	enum token_tag tag;
+	struct range   range;
+};
 
 static inline bit check_whitespace(utf32 character)
 {
@@ -237,14 +240,14 @@ static inline bit check_hexadecimal(utf32 character)
 	return check_digital(character) || character >= 'A' && character <= 'F' || character >= 'a' && character <= 'f';
 }
 
-static utf32 peek_character(uint8 *increment, const Caret *caret)
+static utf32 peek_character(ubyte *increment, const struct caret *caret)
 {
 	utf32 character;
-	uint32 position = caret->location.position + caret->increment;
+	ulong position = caret->location.position + caret->increment;
 	if(position < caret->source->data_size)
 	{
 		utf8 bytes[4] = {};
-		for(uint8 i = 0; i < sizeof(bytes) / sizeof(bytes[0]); i += 1)
+		for(ubyte i = 0; i < sizeof(bytes) / sizeof(bytes[0]); i += 1)
 		{
 			bytes[i] = caret->source->data[position];
 			if(position >= caret->source->data_size) break;
@@ -260,9 +263,9 @@ static utf32 peek_character(uint8 *increment, const Caret *caret)
 	return character;
 }
 
-static utf32 get_character(Caret *caret)
+static utf32 get_character(struct caret *caret)
 {
-	uint8 increment;
+	ubyte increment;
 	utf32 character = peek_character(&increment, caret);
 
 	caret->location.position += caret->increment;
@@ -277,15 +280,15 @@ static utf32 get_character(Caret *caret)
 	return character;
 }
 
-typedef enum
+enum severity
 {
 	VERBOSE,
 	COMMENT,
 	CAUTION,
 	FAILURE,
-} Severity;
+};
 
-static void report_v(Severity severity, const Source *source, const Range *range, const utf8 *message, vargs vargs)
+static void report_v(enum severity severity, const struct source *source, const struct range *range, const utf8 *message, vargs vargs)
 {
 	const utf8 *severities[] =
 	{
@@ -296,11 +299,11 @@ static void report_v(Severity severity, const Source *source, const Range *range
 	};
 	if(source && range)
 	{
-		print("%.*s[%u-%u|%u,%u]: %s: ", source->path_size, source->path, range->beginning, range->ending, range->row, range->column, severities[severity]);
+		print("%.*s[%lu-%lu|%lu,%lu]: %s: ", source->path_size, source->path, range->beginning, range->ending, range->row, range->column, severities[severity]);
 		print_v(message, vargs);
 		print("\n");
 
-		uint32 range_size = range->ending - range->beginning;
+		ulong range_size = range->ending - range->beginning;
 		if(range_size)
 		{
 			// TODO(Emhyr): better printing
@@ -317,7 +320,7 @@ static void report_v(Severity severity, const Source *source, const Range *range
 	}
 }
 
-static inline void report(Severity severity, const Source *source, const Range *range, const utf8 *message, ...)
+static inline void report(enum severity severity, const struct source *source, const struct range *range, const utf8 *message, ...)
 {
 	vargs vargs;
 	GET_VARGS(vargs, message);
@@ -325,7 +328,7 @@ static inline void report(Severity severity, const Source *source, const Range *
 	END_VARGS(vargs);
 }
 
-_Noreturn static inline void fail(const Source *source, const Range *range, const utf8 *message, ...)
+_Noreturn static inline void fail(const struct source *source, const struct range *range, const utf8 *message, ...)
 {
 	vargs vargs;
 	GET_VARGS(vargs, message);
@@ -335,7 +338,7 @@ _Noreturn static inline void fail(const Source *source, const Range *range, cons
 	UNREACHABLE();
 }
 
-static Token_Tag get_token(Token *token, Caret *caret)
+static enum token_tag get_token(struct token *token, struct caret *caret)
 {
 	const utf8 *failure_message;
 
@@ -361,6 +364,10 @@ repeat:
 		{
 			switch(get_character(caret))
 			{
+			case '.':
+				token->tag = DECIMAL;
+				get_character(caret);
+				break;
 			case 'b':
 				token->tag = BINARY;
 				checker = &check_binary;
@@ -430,7 +437,7 @@ repeat:
 	case '^':
 	case '|':
 	case '.':
-		uint8 peeked_increment;
+		ubyte peeked_increment;
 		utf32 second_character = peek_character(&peeked_increment, caret);
 		if(second_character == '=')
 		{
@@ -478,6 +485,8 @@ repeat:
 					}
 				}
 				break;
+			default:
+				goto single;
 			}
 			goto twice;
 		}
@@ -527,7 +536,7 @@ failed:
 	fail(caret->source, &token->range, failure_message);
 }
 
-typedef enum
+enum node_tag : ubyte
 {
 	INVOCATION,
 	NEGATIVE,
@@ -580,12 +589,12 @@ typedef enum
 	SCOPE,
 
 	INTEGER,
-	REAL,
+	REAL64,
 	STRING,
 	REFERENCE,
 
 	SUBEXPRESSION,
-} Node_Tag;
+};
 
 static const utf8 *representations_of_node_tags[] =
 {
@@ -635,21 +644,21 @@ static const utf8 *representations_of_node_tags[] =
 	[ROUTINE]                   = "routine",
 	[SCOPE]                     = "scope",
 	[INTEGER]                   = "integer",
-	[REAL]                      = "real",
+	[REAL64]                    = "real64",
 	[STRING]                    = "string",
 	[REFERENCE]                 = "reference",
 	[SUBEXPRESSION]             = "subexpression",
 };
 
-typedef uint8 Precedence;
+typedef ubyte precedence_t;
 
-enum : uint8
+enum : precedence_t
 {
-	TYPE_PRECEDENCE       = 100,
-	ASSIGNMENT_PRECEDENCE,
+	DEFAULT_PRECEDENCE     = 0,
+	DECLARATION_PRECEDENCE = 100,
 };
 
-static Precedence precedences[] =
+static precedence_t precedences[] =
 {
 	[RESOLUTION]                = 14,
 	
@@ -707,94 +716,109 @@ static Precedence precedences[] =
 	[LIST]                      = 1,
 };
 
-typedef struct Node Node;
-
-typedef struct
+struct identifier
 {
 	const utf8 *value;
-	uint32      size;
-} Identifier;
-
-typedef struct
-{
-	Identifier identifier;
-	Node      *type;
-	Node      *assignment;
-	bit        constant : 1;
-} Value;
-
-typedef struct
-{
-	Identifier identifier;
-	uint32     position;
-} Label;
-
-typedef struct Routine Routine;
-
-typedef struct Scope Scope;
-
-struct Scope
-{
-	Scope   *parent;
-	Routine *owner;
-	Value   *values;
-	Label   *labels;
-	Routine *routines;
-	Node   **statements;
-	uint32   values_count;
-	uint32   labels_count;
-	uint32   routines_count;
-	uint32   statements_count;
+	ulong       size;
 };
 
-struct Routine
+struct value
 {
-	Identifier identifier;
-	Value     *parameters;
-	uint32     parameters_count;
-	uint32     arguments_count;
-	Scope      scope;
+	struct identifier identifier;
+	struct node      *type;
+	struct node      *assignment;
+	bit               constant : 1;
+	struct range      range;
 };
 
-typedef struct
+struct label
 {
-	uint64 value;
-} Integer;
+	struct identifier identifier;
+	ulong             position;
+};
 
-typedef struct
+struct symbol_table
+{
+	struct value   *values;
+	struct label   *labels;
+	struct routine *routines;
+	ulong           values_count;
+	ulong           labels_count;
+	ulong           routines_count;
+};
+
+struct scope
+{
+	struct scope       *parent;
+	struct routine     *owner;
+	struct node       **statements;
+	ulong               statements_count;
+	struct symbol_table symbols;
+};
+
+struct routine
+{
+	struct identifier identifier;
+	struct value     *parameters;
+	ulong             parameters_count;
+	ulong             arguments_count;
+	struct scope      scope;
+};
+
+struct integer
+{
+	ulong value;
+};
+
+struct real
 {
 	real64 value;
-} Real;
+};
 
-typedef struct
+struct string
 {
-	uint8 *value;
-	uint32 size;
-} String;
+	ubyte *value;
+	ulong size;
+};
 
-struct Node
+struct unary
 {
-	Node_Tag tag;
-	Range    range;
+	struct node *other;
+};
+
+struct binary
+{
+	struct node *left, *right;
+};
+
+struct ternary
+{
+	struct node *left, *right, *other;
+};
+
+struct node
+{
+	enum node_tag tag;
+	struct range  range;
 	union
 	{
-		Identifier identifier;
-		Integer    integer;
-		Real       real;
-		String     string;
-		Node      *unary;
-		Node      *binary[2];
-		Node      *ternary[3];
-		Value     *value;
-		Scope      scope;
+		struct identifier identifier;
+		struct integer    integer;
+		struct real       real;
+		struct string     string;
+		struct unary      unary;
+		struct binary     binary;
+		struct ternary    ternary;
+		struct value     *value;
+		struct scope      scope;
 	} data[];
 };
 
-void parse_integer(Integer *integer, Token *token, Caret *caret)
+void parse_integer(struct integer *integer, struct token *token, struct caret *caret)
 {
 	ASSERT(token->tag == BINARY || token->tag == DIGITAL || token->tag == HEXADECIMAL);
 
-	uint8 base;
+	ubyte base;
 	switch(token->tag)
 	{
 	case BINARY:
@@ -811,20 +835,20 @@ void parse_integer(Integer *integer, Token *token, Caret *caret)
 	}
 
 	integer->value = 0;
-	for(const utf8 *pointer = caret->source->data + token->range.beginning,
+	for(const utf8 *pointer = caret->source->data + token->range.beginning + (token->tag != DIGITAL ? 2 : 0),
 	               *ending  = caret->source->data + token->range.ending;
 	    pointer < ending;
 	    pointer += 1)
 	{
 		integer->value = integer->value * base + *pointer - (*pointer >= '0' && *pointer <= '9' ? '0' : *pointer >= 'A' && *pointer <= 'F' ? 'A' : 'a');
+		integer->value += !(*pointer >= '0' && *pointer <= '9') ? 10 : 0;
 	}
-
 	get_token(token, caret);
 }
 
 #include <stdlib.h> // TODO(Emhyr): ditch <stdlib.h>
 
-void parse_real(Real *real, Token *token, Caret *caret)
+void parse_real(struct real *real, struct token *token, struct caret *caret)
 {
 	ASSERT(token->tag == DECIMAL);
 	char *ending;
@@ -832,22 +856,22 @@ void parse_real(Real *real, Token *token, Caret *caret)
 	get_token(token, caret);
 }
 
-void parse_string(String *string, Token *token, Caret *caret)
+void parse_string(struct string *string, struct token *token, struct caret *caret)
 {
 	ASSERT(token->tag == TEXT);
-	const uint8 *input  = (uint8 *)caret->source->data + token->range.beginning + 1;
-	const uint8 *ending = (uint8 *)caret->source->data + token->range.ending;
+	const ubyte *input  = (ubyte *)caret->source->data + token->range.beginning + 1;
+	const ubyte *ending = (ubyte *)caret->source->data + token->range.ending;
 	if(input == ending) fail(caret->source, &token->range, "empty string");
 	ending -= 1;
 	string->value = allocate_memory(ending - input);
-	uint8 *output = string->value;
+	ubyte *output = string->value;
 	while(input < ending)
 	{
-		uint8 byte = *input;
+		ubyte byte = *input;
 		input += 1;
 		if(byte == '\\')
 		{
-			uint8 escape = *input;
+			ubyte escape = *input;
 			input += 1;
 			switch(escape)
 			{
@@ -870,7 +894,7 @@ void parse_string(String *string, Token *token, Caret *caret)
 				byte = 0xb;
 				break;
 			default:
-				uint8 buffer = byte;
+				ubyte buffer = byte;
 				if(check_digital(byte))
 				{
 					buffer = 0;
@@ -893,56 +917,56 @@ void parse_string(String *string, Token *token, Caret *caret)
 	get_token(token, caret);
 }
 
-void parse_identifier(Identifier *Identifier, Token *token, Caret *caret)
+void parse_identifier(struct identifier *identifier, struct token *token, struct caret *caret)
 {
 	ASSERT(token->tag == NAME);
-	Identifier->value = caret->source->data + token->range.beginning;
-	Identifier->size = token->range.ending - token->range.beginning;
+	identifier->value = caret->source->data + token->range.beginning;
+	identifier->size = token->range.ending - token->range.beginning;
 	get_token(token, caret);
 }
 
-Node *parse_expression(Precedence other_precedence, Token *token, Caret *caret, Buffer *buffer)
+struct node *parse_expression(precedence_t other_precedence, struct token *token, struct caret *caret, struct buffer *buffer)
 {
-	uint32 beginning = token->range.beginning;
-	uint32 row = token->range.row;
-	uint32 column = token->range.column;
+	ulong beginning = token->range.beginning;
+	ulong row = token->range.row;
+	ulong column = token->range.column;
 
-	Node *left = 0;
+	struct node *left = 0;
 	switch(token->tag)
 	{
 	case BINARY:
 	case DIGITAL:
 	case HEXADECIMAL:
-		left = push_into_buffer(sizeof(Node) + sizeof(Integer), alignof(Node), buffer);
+		left = push_into_buffer(sizeof(struct node) + sizeof(struct integer), alignof(struct node), buffer);
 		left->tag = INTEGER;
 		parse_integer(&left->data->integer, token, caret);
 		break;
 		// TODO(Emhyr): allow scientific and hex notation
 	case DECIMAL:
-		left = push_into_buffer(sizeof(Node) + sizeof(Real), alignof(Node), buffer);
-		left->tag = REAL;
+		left = push_into_buffer(sizeof(struct node) + sizeof(struct real), alignof(struct node), buffer);
+		left->tag = REAL64;
 		parse_real(&left->data->real, token, caret);
 		break;
 	case TEXT:
-		left = push_into_buffer(sizeof(Node) + sizeof(String), alignof(Node), buffer);
+		left = push_into_buffer(sizeof(struct node) + sizeof(struct string), alignof(struct node), buffer);
 		left->tag = STRING;
 		parse_string(&left->data->string, token, caret);
 		break;
 	case NAME:
-		left = push_into_buffer(sizeof(Node) + sizeof(Identifier), alignof(Node), buffer);
+		left = push_into_buffer(sizeof(struct node) + sizeof(struct identifier), alignof(struct node), buffer);
 		left->tag = REFERENCE;
 		parse_identifier(&left->data->identifier, token, caret);
 		break;
 	case LEFT_PARENTHESIS:
-		left = push_into_buffer(sizeof(Node) + sizeof(Node *), alignof(Node), buffer);
+		left = push_into_buffer(sizeof(struct node) + sizeof(struct unary), alignof(struct node), buffer);
 		left->tag = SUBEXPRESSION;
 		get_token(token, caret);
-		left->data->unary = parse_expression(0, token, caret, buffer);
+		left->data->unary.other = parse_expression(0, token, caret, buffer);
 		if(token->tag == RIGHT_PARENTHESIS) get_token(token, caret);
 		else fail(caret->source, &token->range, "unterminated scope; expected `%c`", left->tag == SUBEXPRESSION ? ')' : ']');
 		break;
 
-		Node_Tag left_tag;
+		enum node_tag left_tag;
 	case HYPHEN_MINUS:      left_tag = NEGATIVE;    goto unary;
 	case EXCLAMATION_MARK:  left_tag = NEGATION;    goto unary;
 	case TILDE:             left_tag = NOT;         goto unary;
@@ -951,10 +975,10 @@ Node *parse_expression(Precedence other_precedence, Token *token, Caret *caret, 
 	case CIRCUMFLEX_ACCENT: left_tag = JUMP;        goto unary;
 	case APOSTROPHE:        left_tag = INFERENCE;   goto unary;
 	unary:
-		left = push_into_buffer(sizeof(Node) + sizeof(Node *), alignof(Node), buffer);
+		left = push_into_buffer(sizeof(struct node) + sizeof(struct unary), alignof(struct node), buffer);
 		left->tag = left_tag;
 		get_token(token, caret);
-		left->data->unary = parse_expression(precedences[left_tag], token, caret, buffer);
+		left->data->unary.other = parse_expression(precedences[left_tag], token, caret, buffer);
 		break;
 
 	case COLON:
@@ -975,10 +999,10 @@ Node *parse_expression(Precedence other_precedence, Token *token, Caret *caret, 
 
 	for(;;)
 	{
-		Node *right;
+		struct node *right;
 		switch(token->tag)
 		{
-			Node_Tag right_tag;
+			enum node_tag right_tag;
 		case COMMA:                           right_tag = LIST;                      goto binary;
 		case FULL_STOP:                       right_tag = RESOLUTION;                goto binary;
 		case FULL_STOP_2:                     right_tag = RANGE;                     goto binary;
@@ -1014,31 +1038,22 @@ Node *parse_expression(Precedence other_precedence, Token *token, Caret *caret, 
 		default:                              right_tag = INVOCATION;                goto binary;
 		case QUESTION_MARK:                   right_tag = CONDITION;                 goto binary;
 		binary:
-			if(other_precedence == TYPE_PRECEDENCE)
-			{
-				if(right_tag >= ASSIGNMENT && right_tag <= RSH_ASSIGNMENT || right_tag == LIST) goto finished;
-				else other_precedence = 0;
-			}
-			else if(other_precedence == ASSIGNMENT_PRECEDENCE)
-			{
-				if(right_tag == LIST) goto finished;
-				else other_precedence = 0;
-			}
-			Precedence right_precedence = precedences[right_tag];
+			if(other_precedence == DECLARATION_PRECEDENCE && (right_tag >= ASSIGNMENT && right_tag <= RSH_ASSIGNMENT || right_tag == LIST)) goto finished;
+			precedence_t right_precedence = precedences[right_tag];
 			if(right_precedence <= other_precedence) goto finished;
 			if(right_tag != INVOCATION) get_token(token, caret);
-			right = push_into_buffer(sizeof(Node) + (right_tag == CONDITION ? sizeof(Node *[3]) : sizeof(Node *[2])), alignof(Node), buffer);
+			right = push_into_buffer(sizeof(struct node) + (right_tag == CONDITION ? sizeof(struct ternary) : sizeof(struct binary)), alignof(struct node), buffer);
 			right->tag = right_tag;
-			right->data->binary[0] = left;
-			right->data->binary[1] = parse_expression(right_tag == CONDITION ? 0 : right_precedence, token, caret, buffer);
+			right->data->binary.left = left;
+			right->data->binary.right = parse_expression(right_tag == CONDITION ? 0 : right_precedence, token, caret, buffer);
 			if(right_tag == CONDITION)
 			{
 				if(token->tag == EXCLAMATION_MARK)
 				{
 					get_token(token, caret);
-					right->data->ternary[2] = parse_expression(right_precedence, token, caret, buffer);
+					right->data->ternary.other = parse_expression(right_precedence, token, caret, buffer);
 				}
-				else right->data->ternary[2] = 0;
+				else right->data->ternary.other = 0;
 			}
 			break;
 			
@@ -1065,9 +1080,12 @@ finished:
 	return left;
 }
 
-void parse_value(Value *value, Token *token, Caret *caret, Buffer *buffer)
+void parse_value(struct value *value, struct token *token, struct caret *caret, struct buffer *buffer)
 {
 	ASSERT(token->tag == NAME);
+	value->range.beginning = token->range.beginning;
+	value->range.row       = token->range.row;
+	value->range.column    = token->range.column;
 	parse_identifier(&value->identifier, token, caret);
 	if(token->tag != COLON) fail(caret->source, &token->range, "expected `:`");
 	get_token(token, caret);
@@ -1077,7 +1095,7 @@ void parse_value(Value *value, Token *token, Caret *caret, Buffer *buffer)
 	case COLON:
 		break;
 	default:
-		value->type = parse_expression(TYPE_PRECEDENCE, token, caret, buffer);
+		value->type = parse_expression(DECLARATION_PRECEDENCE, token, caret, buffer);
 		break;
 	}
 	value->constant = 0;
@@ -1087,15 +1105,16 @@ void parse_value(Value *value, Token *token, Caret *caret, Buffer *buffer)
 		value->constant = 1;
 	case EQUAL_SIGN:
 		get_token(token, caret);
-		value->assignment = parse_expression(ASSIGNMENT_PRECEDENCE, token, caret, buffer);
+		value->assignment = parse_expression(DECLARATION_PRECEDENCE, token, caret, buffer);
 		break;
 	default:
 		if(!value->type) fail(caret->source, &token->range, "untyped and uninitialized value");
 		break;
 	}
+	value->range.ending = token->range.ending;
 }
 
-void parse_scope(Scope *scope, Scope *parent, Routine *owner, Token *token, Caret *caret)
+void parse_scope(struct scope *scope, struct scope *parent, struct routine *owner, struct token *token, struct caret *caret)
 {
 	ASSERT(token->tag == LEFT_CURLY_BRACKET);
 
@@ -1103,24 +1122,27 @@ void parse_scope(Scope *scope, Scope *parent, Routine *owner, Token *token, Care
 	scope->owner = owner;
 	
 	// TODO(Emhyr): ditch `allocate_buffer`
-	Buffer *values = allocate_buffer(GIBIBYTE(1), system_page_size);
-	Buffer *labels = allocate_buffer(GIBIBYTE(1), system_page_size);
-	Buffer *routines = allocate_buffer(GIBIBYTE(1), system_page_size);
-	Buffer *statements = allocate_buffer(GIBIBYTE(1), system_page_size);
-	Buffer *buffer = allocate_buffer(GIBIBYTE(1), system_page_size);
-	scope->values = (Value *)values->base;
-	scope->labels = (Label *)labels->base;
-	scope->routines = (Routine *)routines->base; scope->statements = (Node **)statements->base;
-	scope->values_count = 0;
-	scope->labels_count = 0;
-	scope->routines_count = 0;
-	scope->statements_count = 0;
+	struct buffer *statements = allocate_buffer(GIBIBYTE(1), system_page_size);
+	struct buffer *buffer     = allocate_buffer(GIBIBYTE(1), system_page_size);
+	struct buffer *values     = allocate_buffer(GIBIBYTE(1), system_page_size);
+	struct buffer *labels     = allocate_buffer(GIBIBYTE(1), system_page_size);
+	struct buffer *routines   = allocate_buffer(GIBIBYTE(1), system_page_size);
+	
+	scope->statements               = (struct node   **)statements->base;
+	scope->statements_count         = 0;
+	scope->symbols.values           = (struct value   *)values->base;
+	scope->symbols.labels           = (struct label   *)labels->base;
+	scope->symbols.routines         = (struct routine *)routines->base;
+	scope->symbols.values_count     = 0;
+	scope->symbols.labels_count     = 0;
+	scope->symbols.routines_count   = 0;
+
 	get_token(token, caret);
 	for(;;)
 	{
-		Node *node;
-		Token onsetting_token = *token;
-		Caret onsetting_caret = *caret;
+		struct node *node;
+		struct token onsetting_token = *token;
+		struct caret onsetting_caret = *caret;
 		switch(onsetting_token.tag)
 		{
 		case NAME:
@@ -1129,12 +1151,12 @@ void parse_scope(Scope *scope, Scope *parent, Routine *owner, Token *token, Care
 				// TODO(Emhyr): parse modules
 				*token = onsetting_token;
 				*caret = onsetting_caret;
-				Value *value = push_into_buffer(sizeof(Value), alignof(Value), values);
-				++scope->values_count;
+				struct value *value = push_into_buffer(sizeof(struct value), alignof(struct value), values);
+				++scope->symbols.values_count;
 				parse_value(value, token, caret, buffer);
 				if(value->assignment && !value->constant)
 				{
-					node = push_into_buffer(sizeof(Node) + sizeof(Value *), alignof(Node), buffer);
+					node = push_into_buffer(sizeof(struct node) + sizeof(struct value *), alignof(struct node), buffer);
 					node->tag = VALUE;
 					node->data->value = value;
 					goto statement;
@@ -1151,16 +1173,16 @@ void parse_scope(Scope *scope, Scope *parent, Routine *owner, Token *token, Care
 		case FULL_STOP:
 			if(get_token(token, caret) == NAME)
 			{
-				Identifier identifier;
+				struct identifier identifier;
 				parse_identifier(&identifier, token, caret);
 				if(token->tag == COLON)
 				{
-					Routine *routine = push_into_buffer(sizeof(Routine), alignof(Routine), routines);
-					++scope->routines_count;
+					struct routine *routine = push_into_buffer(sizeof(struct routine), alignof(struct routine), routines);
+					++scope->symbols.routines_count;
 					routine->identifier = identifier;
 					get_token(token, caret);
-					Value *parameter;
-					Buffer *parameters = 0;
+					struct value  *parameter;
+					struct buffer *parameters = 0;
 					if(token->tag == LEFT_PARENTHESIS)
 					{
 						parameters = allocate_buffer(MEBIBYTE(1), system_page_size);
@@ -1170,7 +1192,7 @@ void parse_scope(Scope *scope, Scope *parent, Routine *owner, Token *token, Care
 							switch(token->tag)
 							{
 							case NAME:
-								parameter = push_into_buffer(sizeof(Value), alignof(Value), parameters);
+								parameter = push_into_buffer(sizeof(struct value), alignof(struct value), parameters);
 								++routine->parameters_count;
 								parse_value(parameter, token, caret, buffer);
 								break;
@@ -1200,7 +1222,7 @@ void parse_scope(Scope *scope, Scope *parent, Routine *owner, Token *token, Care
 							switch(token->tag)
 							{
 							case NAME:
-								parameter = push_into_buffer(sizeof(Value), alignof(Value), parameters);
+								parameter = push_into_buffer(sizeof(struct value), alignof(struct value), parameters);
 								++routine->parameters_count;
 								parse_value(parameter, token, caret, buffer);
 								break;
@@ -1217,13 +1239,13 @@ void parse_scope(Scope *scope, Scope *parent, Routine *owner, Token *token, Care
 					finished_results:
 						break;
 					}
-					routine->parameters = (Value *)parameters->base;
+					routine->parameters = (struct value *)parameters->base;
 					if(token->tag == LEFT_CURLY_BRACKET) parse_scope(&routine->scope, scope, routine, token, caret);
 				}
 				else
 				{
-					Label *label = push_into_buffer(sizeof(Node) + sizeof(Label), alignof(Label), labels);
-					++scope->labels_count;
+					struct label *label = push_into_buffer(sizeof(struct node) + sizeof(struct label), alignof(struct label), labels);
+					++scope->symbols.labels_count;
 					label->identifier = identifier;
 					label->position = scope->statements_count;
 				}
@@ -1232,7 +1254,7 @@ void parse_scope(Scope *scope, Scope *parent, Routine *owner, Token *token, Care
 			continue;
 
 		case LEFT_CURLY_BRACKET:
-			node = push_into_buffer(sizeof(Node) + sizeof(Scope), alignof(Node), buffer);
+			node = push_into_buffer(sizeof(struct node) + sizeof(struct scope), alignof(struct node), buffer);
 			node->tag = SCOPE;
 			parse_scope(&node->data->scope, scope, 0, token, caret);
 			break;
@@ -1251,7 +1273,7 @@ void parse_scope(Scope *scope, Scope *parent, Routine *owner, Token *token, Care
 		}
 
 	statement:
-		Node **statement = push_into_buffer(sizeof(Node *), alignof(Node *), statements);
+		struct node **statement = push_into_buffer(sizeof(struct node *), alignof(struct node *), statements);
 		*statement = node;
 		++scope->statements_count;
 	}
@@ -1259,153 +1281,308 @@ void parse_scope(Scope *scope, Scope *parent, Routine *owner, Token *token, Care
 finished:
 }
 
-typedef enum
+enum type_class
 {
-	VOID,
-	UINT8,
-	UINT16,
-	UINT32,
-	UINT64,
-	SINT8,
-	SINT16,
-	SINT32,
-	SINT64,
-	REAL32,
-	REAL64,
+	PRIMITIVE,
 	POINTER,
 	ARRAY,
 	TUPLE,
-} Type_Class;
+	NAMED,
+};
 
-typedef struct Type Type;
-
-typedef struct
+struct pointer
 {
-	Type *subtype;
-} Address;
+	struct type *subtype;
+};
 
-typedef struct
+struct array
 {
-	Type  *subtype;
-	uint64 count;
-} Array;
+	struct type *subtype;
+	ulong        count;
+};
 
-typedef struct
+struct tuple
 {
-	Type **subtypes;
-	uint64 count;
-} Tuple;
+	struct type **subtypes;
+	ulong         count;
+};
 
-struct Type
+struct named
 {
-	Type_Class class;
+	struct value *value;
+};
+
+struct type
+{
+	enum type_class class;
 	union
 	{
-		Address pointer;
-		Array   array;
-		Tuple   tuple;
-	} data[];
+		struct address *pointer;
+		struct array   *array;
+		struct tuple   *tuple;
+		struct named   *named;
+	};
 };
 
 struct
 {
-	Type uint8;
-	Type uint16;
-	Type uint32;
-	Type uint64;
-	Type sint8;
-	Type sint16;
-	Type sint32;
-	Type sint64;
-	Type real32;
-	Type real64;
+	struct type ubyte;
+	struct type uhalf;
+	struct type uword;
+	struct type ulong;
+	struct type sbyte;
+	struct type shalf;
+	struct type sword;
+	struct type slong;
+	struct type real32;
+	struct type real64;
 } primitives =
 {
-	{UINT8},
-	{UINT16},
-	{UINT32},
-	{UINT64},
-	{SINT8},
-	{SINT16},
-	{SINT32},
-	{SINT64},
-	{REAL32},
-	{REAL64},
+	{PRIMITIVE},
+	{PRIMITIVE},
+	{PRIMITIVE},
+	{PRIMITIVE},
+	{PRIMITIVE},
+	{PRIMITIVE},
+	{PRIMITIVE},
+	{PRIMITIVE},
+	{PRIMITIVE},
+	{PRIMITIVE}
 };
 
-typedef struct
+struct type_table
 {
-	Type *pointers;
-	Type *arrays;
-	Type *tuples;
-	uint32 pointers_count;
-	uint32 arrays_count;
-	uint32 tuples_count;
-} Type_Table;
+	struct type_table *parent;
+	struct type_table *children;
+	ulong              children_count;
 
-typedef struct
-{
-	Buffer *pointers;
-	Buffer *arrays;
-	Buffer *tuples;
-} Type_Buffers;
+	struct pointer *pointers;
+	struct array   *arrays;
+	struct tuple   *tuples;
+	struct named   *nameds;
+	ulong           pointers_count;
+	ulong           arrays_count;
+	ulong           tuples_count;
+	ulong           nameds_count;
+};
 
-Type *check_expression(Node *node, Type_Table *table, Buffer *buffer)
+struct type_buffers
 {
-	Type *type = 0;
+	struct buffer *children;
+	struct buffer *pointers;
+	struct buffer *arrays;
+	struct buffer *tuples;
+	struct buffer *nameds;
+};
+
+struct type_buffers initialize_type_table(struct type_table *table, struct type_table *parent)
+{
+	zero_memory(table, sizeof(struct type_table));
+	table->parent = parent;
+	struct type_buffers buffers =
+	{
+		.children  = allocate_buffer(GIBIBYTE(1), system_page_size),
+		.pointers  = allocate_buffer(GIBIBYTE(1), system_page_size),
+		.arrays    = allocate_buffer(GIBIBYTE(1), system_page_size),
+		.tuples    = allocate_buffer(GIBIBYTE(1), system_page_size),
+		.nameds = allocate_buffer(GIBIBYTE(1), system_page_size)
+	};
+	table->children = (struct type_table *)buffers.children->base;
+	table->pointers = (struct pointer    *)buffers.pointers->base;
+	table->arrays   = (struct array      *)buffers.arrays->base;
+	table->tuples   = (struct tuple      *)buffers.tuples->base;
+	table->nameds   = (struct named      *)buffers.nameds->base;
+	return buffers;
+}
+
+void *find(const void *query, ulong query_size, const void *items, ulong items_count)
+{
+	void *result = 0;
+	for(ulong i = 0; i < items_count; ++i)
+	{
+		const void *current = items + i * query_size;
+		if(!compare_memory(current, query, query_size))
+		{
+			result = (void *)current;
+			break;
+		}
+	}
+	return result;
+}
+
+void *find_type(enum type_class class, const void *query, struct type_table *types)
+{
+	const void *items;
+	ulong       items_count;
+	ulong       item_size;
+	switch(class)
+	{
+	case POINTER:
+		items = types->pointers;
+		items_count = types->pointers_count;
+		item_size = sizeof(struct pointer);
+		break;
+	case ARRAY:
+		items = types->arrays;
+		items_count = types->arrays_count;
+		item_size = sizeof(struct array);
+		break;
+	case TUPLE:
+		items = types->tuples;
+		items_count = types->tuples_count;
+		item_size = sizeof(struct tuple);
+		break;
+	case NAMED:
+		items = types->nameds;
+		items_count = types->nameds_count;
+		item_size = sizeof(struct named);
+		break;
+	default:
+		ASSERT(0);
+	}
+	void *result;
+	if(types)
+	{
+		result = find(query, item_size, items, items_count);
+		if(!result) result = find_type(class, query, types->parent);
+	}
+	else result = 0;
+	return result;
+}
+
+struct type *check_node(struct node *node, struct type_table *types, struct type_buffers *buffers, struct symbol_table *symbols, struct source *source)
+{
+	struct type *result = 0;
 	switch(node->tag)
 	{
+		struct type *left_type, *right_type, *other_type;
+		
 	case INTEGER:
-		     if(node->data->integer.value <= UMAXOF(uint8))  type = &primitives.uint8;
-		else if(node->data->integer.value <= UMAXOF(uint16)) type = &primitives.uint16;
-		else if(node->data->integer.value <= UMAXOF(uint32)) type = &primitives.uint32;
-		else                                                 type = &primitives.uint64;
+		     if(node->data->integer.value <= UMAXOF(ubyte)) result = &primitives.ubyte;
+		else if(node->data->integer.value <= UMAXOF(uhalf)) result = &primitives.uhalf;
+		else if(node->data->integer.value <= UMAXOF(uword)) result = &primitives.uword;
+		else                                                result = &primitives.ulong;
 		break;
-	case REAL:
-		type = &primitives.real32;
+	case REAL64:
+		result = &primitives.real64;
 		break;
+#if 0
 	case STRING:
 		{
-			Array comparitor =
+			struct array array =
 			{
-				.subtype = &primitives.uint8,
-				.count   = node->value->string.size,
+				.subtype = &primitives.ubyte,
+				.count   = node->data->string.size
 			};
-			bit found = 0;
-			for(uint32 i = 0; i < table->arrays_count; ++i)
+			result->array = find_type(ARRAY, &array, types);
+			if(!result->array)
 			{
-				Array *array = table->arrays + i;
-				found = !compare_memory(array, &comparitor, sizeof(Array));
-			}
-			if(!found)
-			{
-				type = push_into_buffer(sizeof(Array), alignof(Type), buffer);
+				result->array  = push_into_buffer(sizeof(struct array), alignof(struct array), buffers->arrays);
+				*result->array = array;
+				
 			}
 		}
+		result->class = ARRAY;
 		break;
-	case REFERENCE:
+#endif
+
+	//case REFERENCE:
+	//	break;
+
+	case VALUE:
+		ASSERT(!"TODO(Emhyr): ignore this path since it's already checked when checking a scope's declarations");
 		break;
+
+	case SUBEXPRESSION:
+		if(node->data->unary.other) result = check_node(node->data->unary.other, types, buffers, symbols, source);
+		else result = 0;
+		break;
+
+	case NEGATIVE:
+		other_type = check_node(node->data->unary.other, types, buffers, symbols, source);
+		if(other_type >= &primitives.ubyte && other_type <= &primitives.real64)
+		{
+			     if(other_type == &primitives.ubyte) result = &primitives.sbyte;
+			else if(other_type == &primitives.uhalf) result = &primitives.shalf;
+			else if(other_type == &primitives.uword) result = &primitives.sword;
+			else if(other_type == &primitives.ulong) result = &primitives.slong;
+			else                                     result = other_type;
+		}
+		else fail(source, &node->range, "a negation only applies to primitives");
+		break;
+
+	case RSH:
+	case LSH:
+		right_type = check_node(node->data->binary.right, types, buffers, symbols, source);
+		if(right_type >= &primitives.ubyte && right_type <= &primitives.ulong)
+		{
+			left_type = check_node(node->data->binary.left, types, buffers, symbols, source);
+			if(left_type >= &primitives.ubyte && left_type <= &primitives.ulong) result = left_type;
+			else fail(source, &node->range, "the type of the left part of a bitwise shift must be an unsigned integer");
+		}
+		else fail(source, &node->range, "the type of the right part of a bitwise shift must be an unsigned integer");
+		break;
+
 	default:
 		UNIMPLEMENTED();
 	}
-	return type;
+
+	return result;
+}
+
+const utf8 *stringify_type(struct type *type)
+{
+	const utf8 *string;
+	     if(type == &primitives.ubyte)  string = "ubyte"; 
+	else if(type == &primitives.uhalf)  string = "uhalf";
+	else if(type == &primitives.uword)  string = "uword";
+	else if(type == &primitives.ulong)  string = "ulong";
+	else if(type == &primitives.sbyte)  string = "sbyte"; 
+	else if(type == &primitives.shalf)  string = "shalf";
+	else if(type == &primitives.sword)  string = "sword";
+	else if(type == &primitives.slong)  string = "slong";
+	else if(type == &primitives.real32) string = "real32";
+	else if(type == &primitives.real64) string = "real64";
+	else if(type == 0)                  string = "void";
+	return string;
+}
+
+void check(struct symbol_table *symbols, struct symbol_table *parent_symbols, struct source *source)
+{
+	struct type_table   types;
+	struct type_buffers buffers = initialize_type_table(&types, 0);
+
+	for(ulong i = 0; i < symbols->values_count; ++i)
+	{
+		struct value *value = symbols->values + i;
+		struct type  *type  = check_node(value->type, &types, &buffers, symbols, source);
+		struct type  *assignment_type = 0;
+		if(value->assignment)
+		{
+			assignment_type = check_node(value->assignment, &types, &buffers, symbols, source);
+			if(type != assignment_type) fail(source, &value->range, "mismatched types: %s != %s", stringify_type(type), stringify_type(assignment_type));
+		}
+		print("%.*s: %s", value->identifier.size, value->identifier.value, stringify_type(type));
+		if(assignment_type) print(" = %s", stringify_type(assignment_type));
+		print("\n");
+	}
 }
 
 typedef struct Module Module;
 
 struct Module
 {
-	Value   *values;
-	Label   *labels;
-	Routine *routines;
-	uint32   values_count;
-	uint32   labels_count;
-	uint32   routines_count;
+	struct value   *values;
+	struct label   *labels;
+	struct routine *routines;
+	ulong           values_count;
+	ulong           labels_count;
+	ulong           routines_count;
 };
 
-void dump(Node *);
+void dump(struct node *);
 
-void dump_value(Value *value)
+void dump_value(struct value *value)
 {
 	print("{\"identifier\":\"%.*s\"", value->identifier.size, value->identifier.value);
 	if(value->type) print(",\"type\":"), dump(value->type);
@@ -1413,23 +1590,23 @@ void dump_value(Value *value)
 	print(",\"constant\":%i}", value->constant);
 }
 
-void dump_label(Label *label)
+void dump_label(struct label *label)
 {
 	print("{\"identifier\":\"%.*s\"", label->identifier.size, label->identifier.value);
 	print(",\"position\":%i}", label->position);
 }
 
-void dump_scope(Scope *scope);
+void dump_scope(struct scope *scope);
 
-void dump_routine(Routine *routine)
+void dump_routine(struct routine *routine)
 {
 	print("{\"identifier\":\"%.*s\"", routine->identifier.size, routine->identifier.value);
 	print(",\"arguments\":[");
 	if(routine->parameters_count)
 	{
-		for(uint32 i = 0; i < routine->parameters_count - 1; ++i)
+		for(ulong i = 0; i < routine->parameters_count - 1; ++i)
 		{
-			Value *value = routine->parameters + i;
+			struct value *value = routine->parameters + i;
 			dump_value(value);
 			print(",");
 		}
@@ -1440,48 +1617,48 @@ void dump_routine(Routine *routine)
 	print("}");
 }
 
-void dump_scope(Scope *scope)
+void dump_scope(struct scope *scope)
 {
 	print("{");
 	print("\"values\":[");
-	if(scope->values_count)
+	if(scope->symbols.values_count)
 	{
-		for(uint32 i = 0; i < scope->values_count - 1; ++i)
+		for(ulong i = 0; i < scope->symbols.values_count - 1; ++i)
 		{
-			Value *value = scope->values + i;
+			struct value *value = scope->symbols.values + i;
 			dump_value(value);
 			print(",");
 		}
-		dump_value(scope->values + scope->values_count - 1);
+		dump_value(scope->symbols.values + scope->symbols.values_count - 1);
 	}
 	print("],\"labels\":[");
-	if(scope->labels_count)
+	if(scope->symbols.labels_count)
 	{
-		for(uint32 i = 0; i < scope->labels_count - 1; ++i)
+		for(ulong i = 0; i < scope->symbols.labels_count - 1; ++i)
 		{
-			Label *Label = scope->labels + i;
-			dump_label(Label);
+			struct label *label = scope->symbols.labels + i;
+			dump_label(label);
 			print(",");
 		}
-		dump_label(scope->labels + scope->labels_count - 1);
+		dump_label(scope->symbols.labels + scope->symbols.labels_count - 1);
 	}
 	print("],\"routines\":[");
-	if(scope->routines_count)
+	if(scope->symbols.routines_count)
 	{
-		for(uint32 i = 0; i < scope->routines_count - 1; ++i)
+		for(ulong i = 0; i < scope->symbols.routines_count - 1; ++i)
 		{
-			Routine *Routine = scope->routines + i;
-			dump_routine(Routine);
+			struct routine *routine = scope->symbols.routines + i;
+			dump_routine(routine);
 			print(",");
 		}
-		dump_routine(scope->routines + scope->routines_count - 1);
+		dump_routine(scope->symbols.routines + scope->symbols.routines_count - 1);
 	}
 	print("],\"statements\":[");
 	if(scope->statements_count)
 	{
-		for(uint32 i = 0; i < scope->statements_count - 1; ++i)
+		for(ulong i = 0; i < scope->statements_count - 1; ++i)
 		{
-			Node *statement = scope->statements[i];
+			struct node *statement = scope->statements[i];
 			dump(statement);
 			print(",");
 		}
@@ -1490,7 +1667,7 @@ void dump_scope(Scope *scope)
 	print("]}");
 }
 
-void dump(Node *node)
+void dump(struct node *node)
 {
 	print("{");
 	if(node)
@@ -1509,7 +1686,7 @@ void dump(Node *node)
 		case INDIRECTION:
 		case JUMP:
 		case INFERENCE:
-			dump(node->data->unary);
+			dump(node->data->unary.other);
 			break;
 
 		case INVOCATION:
@@ -1546,19 +1723,19 @@ void dump(Node *node)
 		case LSH_ASSIGNMENT:
 		case RSH_ASSIGNMENT:
 			print("[");
-			dump(node->data->binary[0]);
+			dump(node->data->binary.left);
 			print(",");
-			dump(node->data->binary[1]);
+			dump(node->data->binary.right);
 			print("]");
 			break;
 	
 		case CONDITION:
 			print("[");
-			dump(node->data->ternary[0]);
+			dump(node->data->ternary.left);
 			print(",");
-			dump(node->data->ternary[1]);
+			dump(node->data->ternary.right);
 			print(",");
-			dump(node->data->ternary[2]);
+			dump(node->data->ternary.other);
 			print("]");
 			break;
 
@@ -1572,7 +1749,7 @@ void dump(Node *node)
 		case INTEGER:
 			print("%lu", node->data->integer.value);
 			break;
-		case REAL:
+		case REAL64:
 			print("%f", node->data->real.value);
 			break;
 		case STRING:
@@ -1594,16 +1771,18 @@ int start(int argc, utf8 *argv[])
 	int status = 0;
 	if(argc > 1)
 	{
-		Source source;
+		struct source source;
 		load_source(&source, argv[1]);
-		Caret caret = {&source, {0, 0, 0}, '\n', 0};
+		struct caret caret = {&source, {0, 0, 0}, '\n', 0};
 		get_character(&caret);
-		Token token;
+		struct token token;
 		get_token(&token, &caret);
 #if 1
-		Scope Scope;
-		parse_scope(&Scope, 0, 0, &token, &caret);
-		dump_scope(&Scope);
+		struct scope scope;
+		parse_scope(&scope, 0, 0, &token, &caret);
+		dump_scope(&scope);
+		print("\n");
+		check(&scope.symbols, 0, &source);
 #else
 		buffer *buffer = allocate_buffer(GIBIBYTE(1), system_page_size);
 		print("{\"statements\":[");
@@ -1626,12 +1805,12 @@ int start(int argc, utf8 *argv[])
 #define STB_SPRINTF_IMPLEMENTATION
 #include "stb_sprintf.h"
 
-static inline uint32 format_v(utf8 *buffer, uint32 size, const utf8 *format, vargs vargs)
+static inline ulong format_v(utf8 *buffer, ulong size, const utf8 *format, vargs vargs)
 {
 	return stbsp_vsnprintf(buffer, size, format, vargs);
 }
 
-static inline uint32 format(utf8 *buffer, uint32 size, const utf8 *format, ...)
+static inline ulong format(utf8 *buffer, ulong size, const utf8 *format, ...)
 {
 	vargs vargs;
 	GET_VARGS(vargs, format);
@@ -1644,7 +1823,7 @@ static void print_v(const utf8 *format, vargs vargs)
 {
 	typeof(vargs) vargs_copy;
 	COPY_VARGS(vargs_copy, vargs);
-	uint32 size = format_v(0, 0, format, vargs_copy) + 1;
+	ulong size = format_v(0, 0, format, vargs_copy) + 1;
 	utf8 *message = allocate_memory(size);
 	format_v(message, size, format, vargs);
 	write_into_file(message, size, stdout_handle);
@@ -1660,15 +1839,15 @@ static inline void print(const utf8 *format, ...)
 }
 
 // from https://bjoern.hoehrmann.de/utf-8/decoder/dfa/
-typedef enum : uint16
+typedef enum : uhalf
 {
 	DFA_UTF8_STATE_ACCEPT = 0,
 	DFA_UTF8_STATE_REJECT = 1,
 } Dfa_Utf8_State;
 
-static inline uint16 dfa_decode_utf8(Dfa_Utf8_State *state, utf32 *character, utf8 byte)
+static inline uhalf dfa_decode_utf8(Dfa_Utf8_State *state, utf32 *character, utf8 byte)
 {
-	static const uint8 table[] =
+	static const ubyte table[] =
 	{
 		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -1686,86 +1865,86 @@ static inline uint16 dfa_decode_utf8(Dfa_Utf8_State *state, utf32 *character, ut
 		1,3,1,1,1,1,1,3,1,3,1,1,1,1,1,1,1,3,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
 	};
 
-	uint16 type = table[byte];
+	uhalf type = table[byte];
 	*character = *state != DFA_UTF8_STATE_ACCEPT ? byte & 0x3fu | *character << 6 : 0xff >> type & byte;
 	*state = table[256 + *state * 16 + type];
 	return *state;
 }
 
-static uint8 decode_utf8(utf32 *character, const utf8 bytes[4])
+static ubyte decode_utf8(utf32 *character, const utf8 bytes[4])
 {
 	Dfa_Utf8_State state = DFA_UTF8_STATE_ACCEPT;
-	uint16 i = 0;
+	uhalf i = 0;
 	do if(dfa_decode_utf8(&state, character, bytes[i++]) == DFA_UTF8_STATE_ACCEPT) break;
 	while(i < 4);
 	return i;
 }
 
-static inline void copy_memory(void *left, const void *right, uint32 size)
+static inline void copy_memory(void *left, const void *right, ulong size)
 {
 	__builtin_memcpy(left, right, size);
 }
 
-static inline void move_memory(void *left, const void *right, uint32 size)
+static inline void move_memory(void *left, const void *right, ulong size)
 {
 	__builtin_memmove(left, right, size);
 }
 
-static inline void fill_memory(void *buffer, uint32 size, uint8 Value)
+static inline void fill_memory(void *buffer, ulong size, ubyte value)
 {
-	__builtin_memset(buffer, Value, size);
+	__builtin_memset(buffer, value, size);
 }
 
-static inline void zero_memory(void *buffer, uint32 size)
+static inline void zero_memory(void *buffer, ulong size)
 {
 	fill_memory(buffer, size, 0);
 }
 
-static inline sint16 compare_memory(const void *left, const void *right, uint32 size)
+static inline shalf compare_memory(const void *left, const void *right, ulong size)
 {
 	return __builtin_memcmp(left, right, size);
 }
 
-static inline uint64 get_size_of_string(const utf8 *String)
+static inline ulong get_size_of_string(const utf8 *String)
 {
 	return __builtin_strlen(String);
 }
 
-static inline uint32 get_backward_alignment(uint64 address, uint32 alignment)
+static inline ulong get_backward_alignment(ulong address, ulong alignment)
 {
 	ASSERT(alignment % 2 == 0);
 	return alignment ? address & (alignment - 1) : 0;
 }
 
-static inline uint32 get_forward_alignment(uint64 address, uint32 alignment)
+static inline ulong get_forward_alignment(ulong address, ulong alignment)
 {
-	uint32 remainder = get_backward_alignment(address, alignment);
+	ulong remainder = get_backward_alignment(address, alignment);
 	return remainder ? alignment - remainder : 0;
 }
 
-static Buffer *allocate_buffer(uint32 reservation_size, uint32 commission_rate)
+static struct buffer *allocate_buffer(uword reservation_size, uword commission_rate)
 {
 	reservation_size += get_forward_alignment(reservation_size, system_page_size);
 	commission_rate += get_forward_alignment(commission_rate, system_page_size);
-	Buffer *buffer = reserve_memory(reservation_size);
+	struct buffer *buffer = reserve_memory(reservation_size);
 	commit_memory(buffer, commission_rate);
-	buffer->memory           = (uint8 *)buffer;
+	buffer->memory           = (ubyte *)buffer;
 	buffer->reservation_size = reservation_size;
 	buffer->commission_rate  = commission_rate;
 	buffer->commission_size  = commission_rate;
-	buffer->mass             = sizeof(Buffer);
+	buffer->mass             = sizeof(struct buffer);
 	return buffer;
 }
 
-static inline void deallocate_buffer(Buffer *buffer)
+static inline void deallocate_buffer(struct buffer *buffer)
 {
 	release_memory(buffer, buffer->reservation_size);
 }
 
-static void *push_into_buffer(uint32 size, uint32 alignment, Buffer *buffer)
+static void *push_into_buffer(uword size, uword alignment, struct buffer *buffer)
 {
 	ASSERT(alignment % 2 == 0);
-	uint32 forward_alignment = get_forward_alignment((uint64)buffer + buffer->mass, alignment);
+	uword forward_alignment = get_forward_alignment((ulong)buffer + buffer->mass, alignment);
 	if(buffer->mass + forward_alignment + size > buffer->commission_size)
 	{
 		if(buffer->commission_size + buffer->commission_rate > buffer->reservation_size)
@@ -1774,7 +1953,7 @@ static void *push_into_buffer(uint32 size, uint32 alignment, Buffer *buffer)
 				buffer, buffer->reservation_size, buffer->commission_rate, buffer->commission_size, buffer->mass);
 			TRAP();
 		}
-		commit_memory((uint8 *)buffer + buffer->commission_size, buffer->commission_rate);
+		commit_memory((ubyte *)buffer + buffer->commission_size, buffer->commission_rate);
 		buffer->commission_size += buffer->commission_rate;
 	}
 	buffer->mass += forward_alignment;
