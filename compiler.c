@@ -1486,8 +1486,22 @@ struct type *check_node(struct node *node, struct type_table *types, struct type
 		break;
 #endif
 
-	//case REFERENCE:
-	//	break;
+	case REFERENCE:
+		for(ulong i = 0; i < symbols->values_count; ++i)
+		{
+			struct value *value = symbols->values + i;
+			if(value->identifier.size == node->data->identifier.size)
+			{
+				if(!compare_memory(value->identifier.value, node->data->identifier.value, value->identifier.size))
+				{
+					other_type = check_node(value->type, types, buffers, symbols, source);
+					break;
+				}
+			}
+		}
+		if(other_type) result = other_type;
+		else fail(source, &node->range, "undefined reference");
+		break;
 
 	case VALUE:
 		ASSERT(!"TODO(Emhyr): ignore this path since it's already checked when checking a scope's declarations");
@@ -1544,6 +1558,7 @@ const utf8 *stringify_type(struct type *type)
 	else if(type == &primitives.real32) string = "real32";
 	else if(type == &primitives.real64) string = "real64";
 	else if(type == 0)                  string = "void";
+	else UNIMPLEMENTED();
 	return string;
 }
 
@@ -1562,9 +1577,7 @@ void check(struct symbol_table *symbols, struct symbol_table *parent_symbols, st
 			assignment_type = check_node(value->assignment, &types, &buffers, symbols, source);
 			if(type != assignment_type) fail(source, &value->range, "mismatched types: %s != %s", stringify_type(type), stringify_type(assignment_type));
 		}
-		print("%.*s: %s", value->identifier.size, value->identifier.value, stringify_type(type));
-		if(assignment_type) print(" = %s", stringify_type(assignment_type));
-		print("\n");
+		print("%.*s: %s = %s\n", value->identifier.size, value->identifier.value, stringify_type(type), stringify_type(assignment_type));
 	}
 }
 

@@ -4,12 +4,12 @@
 	uint32: 0xffffffff;
 	uint64: 0xffffffffffffffff;
 	
-	sint8 : -(0xff               >> 1) = -0;
-	sint16: -(0xffff             >> 1);
-	sint32: -(0xffffffff         >> 1);
-	sint64: -(0xffffffffffffffff >> 1);
+	sint8 : -(uint8  >> 1) = -0;
+	sint16: -(uint16 >> 1);
+	sint32: -(uint32 >> 1);
+	sint64: -(uint64 >> 1);
 
-	null: ();
+	void: ();
 	
 	real32: 0.0 = 0.;
 	real64: 0.0;
