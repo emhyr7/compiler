@@ -68,7 +68,8 @@ unary-expression
 	;
 
 binary-expression
-	: list                      : expression `,`   expression ;
+	: designation               : identifier `:`   expression ;
+	| list                      : expression `,`   expression ;
 	| range                     : expression `..`  expression ;
 	| resolution                : expression `.`   expression ;
 	| addition                  : expression `+`   expression ;

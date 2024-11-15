@@ -7,6 +7,7 @@
 #define GIBIBYTE(x) (MEBIBYTE(x) << 10)
 
 #define UMAXOF(type) ((type)-1)
+#define SMAXOF(type) ((type)((1ull << (sizeof(type) * 8 - 1)) - 1))
 
 #define MINIMUM(a, b) ((a) <= (b) ? (a) : (b))
 
@@ -79,6 +80,68 @@ struct location
 	ulong row;
 	ulong column;
 };
+
+enum severity
+{
+	VERBOSE,
+	COMMENT,
+	CAUTION,
+	FAILURE,
+};
+
+static void report_v(enum severity severity, const struct source *source, const struct range *range, const utf8 *message, vargs vargs)
+{
+	const utf8 *severities[] =
+	{
+		[VERBOSE] = "verbose",
+		[COMMENT] = "comment",
+		[CAUTION] = "caution",
+		[FAILURE] = "failure",
+	};
+	if(source && range)
+	{
+		print("%.*s[%lu-%lu|%lu,%lu]: %s: ", source->path_size, source->path, range->beginning, range->ending, range->row, range->column, severities[severity]);
+		print_v(message, vargs);
+		print("\n");
+
+		ulong range_size = range->ending - range->beginning;
+		if(range_size)
+		{
+			// TODO(Emhyr): better printing
+			utf8 view[range_size];
+			copy_memory(view, source->data + range->beginning, range_size);
+			print("\t%.*s\n", range_size, view);
+		}
+	}
+	else
+	{
+		print("%s: ", severities[severity]);
+		print_v(message, vargs);
+		print("\n");
+	}
+}
+
+static inline void report(enum severity severity, const struct source *source, const struct range *range, const utf8 *message, ...)
+{
+	vargs vargs;
+	GET_VARGS(vargs, message);
+	report_v(severity, source, range, message, vargs);
+	END_VARGS(vargs);
+}
+
+#define NORETURN _Noreturn void
+
+static inline NORETURN fail(const struct source *source, const struct range *range, const utf8 *message, ...)
+{
+	vargs vargs;
+	GET_VARGS(vargs, message);
+	report_v(FAILURE, source, range, message, vargs);
+	END_VARGS(vargs);
+	terminate(-1);
+	UNREACHABLE();
+}
+
+// TOKENIZATION ////////////////////////////////////////////////////////////////
 
 struct caret
 {
@@ -280,64 +343,6 @@ static utf32 get_character(struct caret *caret)
 	return character;
 }
 
-enum severity
-{
-	VERBOSE,
-	COMMENT,
-	CAUTION,
-	FAILURE,
-};
-
-static void report_v(enum severity severity, const struct source *source, const struct range *range, const utf8 *message, vargs vargs)
-{
-	const utf8 *severities[] =
-	{
-		[VERBOSE] = "verbose",
-		[COMMENT] = "comment",
-		[CAUTION] = "caution",
-		[FAILURE] = "failure",
-	};
-	if(source && range)
-	{
-		print("%.*s[%lu-%lu|%lu,%lu]: %s: ", source->path_size, source->path, range->beginning, range->ending, range->row, range->column, severities[severity]);
-		print_v(message, vargs);
-		print("\n");
-
-		ulong range_size = range->ending - range->beginning;
-		if(range_size)
-		{
-			// TODO(Emhyr): better printing
-			utf8 view[range_size];
-			copy_memory(view, source->data + range->beginning, range_size);
-			print("\t%.*s\n", range_size, view);
-		}
-	}
-	else
-	{
-		print("%s: ", severities[severity]);
-		print_v(message, vargs);
-		print("\n");
-	}
-}
-
-static inline void report(enum severity severity, const struct source *source, const struct range *range, const utf8 *message, ...)
-{
-	vargs vargs;
-	GET_VARGS(vargs, message);
-	report_v(severity, source, range, message, vargs);
-	END_VARGS(vargs);
-}
-
-_Noreturn static inline void fail(const struct source *source, const struct range *range, const utf8 *message, ...)
-{
-	vargs vargs;
-	GET_VARGS(vargs, message);
-	report_v(FAILURE, source, range, message, vargs);
-	END_VARGS(vargs);
-	terminate(-1);
-	UNREACHABLE();
-}
-
 static enum token_tag get_token(struct token *token, struct caret *caret)
 {
 	const utf8 *failure_message;
@@ -536,64 +541,72 @@ failed:
 	fail(caret->source, &token->range, failure_message);
 }
 
+// PARSING /////////////////////////////////////////////////////////////////////
+
 enum node_tag : ubyte
 {
-	INVOCATION,
-	NEGATIVE,
-	NEGATION,
-	NOT,
-	ADDRESS,
-	INDIRECTION,
-	JUMP,
-	INFERENCE,
-	
-	LIST,
-	RANGE,
-	RESOLUTION,
-	ADDITION,
-	SUBTRACTION,
-	MULTIPLICATION,
-	DIVISION,
-	REMAINDER,
-	AND,
-	OR,
-	XOR,
-	LSH,
-	RSH,
-	CONJUNCTION,
-	DISJUNCTION,
-	EQUALITY,
-	INEQUALITY,
-	MAJORITY,
-	MINORITY,
-	INCLUSIVE_MAJORITY,
-	INCLUSIVE_MINORITY,
-	
-	ASSIGNMENT,
-	ADDITION_ASSIGNMENT,
-	SUBTRACTION_ASSIGNMENT,
-	MULTIPLICATION_ASSIGNMENT,
-	DIVISION_ASSIGNMENT,
-	REMAINDER_ASSIGNMENT,
-	AND_ASSIGNMENT,
-	OR_ASSIGNMENT,
-	XOR_ASSIGNMENT,
-	LSH_ASSIGNMENT,
-	RSH_ASSIGNMENT,
-	
-	CONDITION,
+	INVOCATION,  // expression expression
 
-	VALUE,
-	LABEL,
-	ROUTINE,
-	SCOPE,
+	NEGATIVE,    // `-` expression
+	NEGATION,    // `!` expression
+	NOT,         // `~` expression
+	ADDRESS,     // `@` expression
+	INDIRECTION, // `\` expression
+	JUMP,        // `^` expression
+	INFERENCE,   // `'` expression
+	DESIGNATION, // `.` expression ? this must be within a scoped expression
+	
+	LIST,               // expression `,` expression
+	RANGE,              // expression `..` expression
+	RESOLUTION,         // expression `.` expression
+	ADDITION,           // expression `+` expression
+	SUBTRACTION,        // expression `-` expression
+	MULTIPLICATION,     // expression `*` expression
+	DIVISION,           // expression `/` expression
+	REMAINDER,          // expression `%` expression
+	AND,                // expression `&` expression
+	OR,                 // expression `|` expression
+	XOR,                // expression `^` expression
+	LSH,                // expression `<<` expression
+	RSH,                // expression `>>` expression
+	CONJUNCTION,        // expression `&&` expression
+	DISJUNCTION,        // expression `||` expression
+	EQUALITY,           // expression `==` expression
+	INEQUALITY,         // expression `!=` expression
+	MAJORITY,           // expression `>` expression
+	MINORITY,           // expression `<` expression
+	INCLUSIVE_MAJORITY, // expression `>=` expression
+	INCLUSIVE_MINORITY, // expression `<=` expression
+	
+	ASSIGNMENT,                // expression `=` expression
+	ADDITION_ASSIGNMENT,       // expression `+=` expression
+	SUBTRACTION_ASSIGNMENT,    // expression `-=` expression
+	MULTIPLICATION_ASSIGNMENT, // expression `*=` expression
+	DIVISION_ASSIGNMENT,       // expression `/=` expression
+	REMAINDER_ASSIGNMENT,      // expression `%=` expression
+	AND_ASSIGNMENT,            // expression `&=` expression
+	OR_ASSIGNMENT,             // expression `|=` expression
+	XOR_ASSIGNMENT,            // expression `^=` expression
+	LSH_ASSIGNMENT,            // expression `<<=` expression
+	RSH_ASSIGNMENT,            // expression `>>=` expression
+
+	FIELD, // expression `:` expression  ? this must be within a scope expression
+	
+	CONDITION, // expression `?` expression `!` expression
+
+	SUBEXPRESSION, // `(` expression `)`
+	ENUMERATION,   // `[` expression `]`
+
+	VALUE,   // identifier `:` ([expression] `=` expression | expression [`=` expression])
+	LABEL,   // `.` identifier
+	ROUTINE, // `.` identifier `:` expression [scope]
+	SCOPE,   // `{` {statement | `;`} `}`
 
 	INTEGER,
+	REAL32,
 	REAL64,
 	STRING,
 	REFERENCE,
-
-	SUBEXPRESSION,
 };
 
 static const utf8 *representations_of_node_tags[] =
@@ -606,6 +619,7 @@ static const utf8 *representations_of_node_tags[] =
 	[INDIRECTION]               = "indirection",
 	[JUMP]                      = "jump",
 	[INFERENCE]                 = "inference",
+	[DESIGNATION]               = "designation",
 	[LIST]                      = "list",
 	[RANGE]                     = "range",
 	[RESOLUTION]                = "resolution",
@@ -639,15 +653,18 @@ static const utf8 *representations_of_node_tags[] =
 	[LSH_ASSIGNMENT]            = "LSH assignment",
 	[RSH_ASSIGNMENT]            = "RSH assignment",
 	[CONDITION]                 = "condition",
+	[FIELD]                     = "field",
 	[VALUE]                     = "value",
 	[LABEL]                     = "label",
 	[ROUTINE]                   = "routine",
 	[SCOPE]                     = "scope",
 	[INTEGER]                   = "integer",
+	[REAL32]                    = "real32",
 	[REAL64]                    = "real64",
 	[STRING]                    = "string",
 	[REFERENCE]                 = "reference",
 	[SUBEXPRESSION]             = "subexpression",
+	[ENUMERATION]               = "enumeration",
 };
 
 typedef ubyte precedence_t;
@@ -660,58 +677,62 @@ enum : precedence_t
 
 static precedence_t precedences[] =
 {
-	[RESOLUTION]                = 14,
+	[RESOLUTION]                = 16,
+
+	[INVOCATION]                = 15,
 	
-	[INVOCATION]                = 13,
-	[NEGATIVE]                  = 13,
-	[NEGATION]                  = 13,
-	[NOT]                       = 13,
-	[ADDRESS]                   = 13,
-	[INDIRECTION]               = 13,
-	[JUMP]                      = 13,
-	[INFERENCE]                 = 13,
+	[NEGATIVE]                  = 14,
+	[NEGATION]                  = 14,
+	[NOT]                       = 14,
+	[ADDRESS]                   = 14,
+	[INDIRECTION]               = 14,
+	[JUMP]                      = 14,
+	[INFERENCE]                 = 14,
+	[DESIGNATION]               = 14,
 	
-	[MULTIPLICATION]            = 12,
-	[DIVISION]                  = 12,
-	[REMAINDER]                 = 12,
+	[MULTIPLICATION]            = 13,
+	[DIVISION]                  = 13,
+	[REMAINDER]                 = 13,
 	
-	[ADDITION]                  = 11,
-	[SUBTRACTION]               = 11,
+	[ADDITION]                  = 12,
+	[SUBTRACTION]               = 12,
 	
-	[LSH]                       = 10,
-	[RSH]                       = 10,
+	[LSH]                       = 11,
+	[RSH]                       = 11,
 	
-	[MAJORITY]                  = 9,
-	[MINORITY]                  = 9,
-	[INCLUSIVE_MAJORITY]        = 9,
-	[INCLUSIVE_MINORITY]        = 9,
+	[MAJORITY]                  = 10,
+	[MINORITY]                  = 10,
+	[INCLUSIVE_MAJORITY]        = 10,
+	[INCLUSIVE_MINORITY]        = 10,
 	
-	[EQUALITY]                  = 8,
-	[INEQUALITY]                = 8,
+	[EQUALITY]                  = 9,
+	[INEQUALITY]                = 9,
 	
-	[AND]                       = 7,
+	[AND]                       = 8,
 	
-	[XOR]                       = 6,
+	[XOR]                       = 7,
 	
-	[OR]                        = 5,
+	[OR]                        = 6,
 	
-	[CONJUNCTION]               = 4,
+	[CONJUNCTION]               = 5,
 	
-	[DISJUNCTION]               = 3,
+	[DISJUNCTION]               = 4,
 	
-	[RANGE]                     = 2,
-	[CONDITION]                 = 2,
-	[ASSIGNMENT]                = 2,
-	[ADDITION_ASSIGNMENT]       = 2,
-	[SUBTRACTION_ASSIGNMENT]    = 2,
-	[MULTIPLICATION_ASSIGNMENT] = 2,
-	[DIVISION_ASSIGNMENT]       = 2,
-	[REMAINDER_ASSIGNMENT]      = 2,
-	[AND_ASSIGNMENT]            = 2,
-	[OR_ASSIGNMENT]             = 2,
-	[XOR_ASSIGNMENT]            = 2,
-	[LSH_ASSIGNMENT]            = 2,
-	[RSH_ASSIGNMENT]            = 2,
+	[RANGE]                     = 3,
+	[CONDITION]                 = 3,
+	[ASSIGNMENT]                = 3,
+	[ADDITION_ASSIGNMENT]       = 3,
+	[SUBTRACTION_ASSIGNMENT]    = 3,
+	[MULTIPLICATION_ASSIGNMENT] = 3,
+	[DIVISION_ASSIGNMENT]       = 3,
+	[REMAINDER_ASSIGNMENT]      = 3,
+	[AND_ASSIGNMENT]            = 3,
+	[OR_ASSIGNMENT]             = 3,
+	[XOR_ASSIGNMENT]            = 3,
+	[LSH_ASSIGNMENT]            = 3,
+	[RSH_ASSIGNMENT]            = 3,
+
+	[FIELD]                     = 2,
 	
 	[LIST]                      = 1,
 };
@@ -724,11 +745,11 @@ struct identifier
 
 struct value
 {
+	struct range      range;
 	struct identifier identifier;
 	struct node      *type;
 	struct node      *assignment;
-	bit               constant : 1;
-	struct range      range;
+	bit               is_constant : 1;
 };
 
 struct label
@@ -737,8 +758,16 @@ struct label
 	ulong             position;
 };
 
-struct symbol_table
+struct scope
 {
+	struct scope   *parent;
+	struct routine *owner;
+
+	struct range range;
+
+	struct node **statements;
+	ulong         statements_count;
+
 	struct value   *values;
 	struct label   *labels;
 	struct routine *routines;
@@ -747,21 +776,10 @@ struct symbol_table
 	ulong           routines_count;
 };
 
-struct scope
-{
-	struct scope       *parent;
-	struct routine     *owner;
-	struct node       **statements;
-	ulong               statements_count;
-	struct symbol_table symbols;
-};
-
 struct routine
 {
 	struct identifier identifier;
-	struct value     *parameters;
-	ulong             parameters_count;
-	ulong             arguments_count;
+	struct node      *parameters;
 	struct scope      scope;
 };
 
@@ -778,7 +796,7 @@ struct real
 struct string
 {
 	ubyte *value;
-	ulong size;
+	ulong  size;
 };
 
 struct unary
@@ -809,12 +827,13 @@ struct node
 		struct unary      unary;
 		struct binary     binary;
 		struct ternary    ternary;
-		struct value     *value;
-		struct scope      scope;
+
+		struct value *value;
+		struct scope  scope;
 	} data[];
 };
 
-void parse_integer(struct integer *integer, struct token *token, struct caret *caret)
+void parse_integer(struct integer *result, struct token *token, struct caret *caret)
 {
 	ASSERT(token->tag == BINARY || token->tag == DIGITAL || token->tag == HEXADECIMAL);
 
@@ -834,14 +853,14 @@ void parse_integer(struct integer *integer, struct token *token, struct caret *c
 		UNREACHABLE();
 	}
 
-	integer->value = 0;
+	result->value = 0;
 	for(const utf8 *pointer = caret->source->data + token->range.beginning + (token->tag != DIGITAL ? 2 : 0),
 	               *ending  = caret->source->data + token->range.ending;
 	    pointer < ending;
 	    pointer += 1)
 	{
-		integer->value = integer->value * base + *pointer - (*pointer >= '0' && *pointer <= '9' ? '0' : *pointer >= 'A' && *pointer <= 'F' ? 'A' : 'a');
-		integer->value += !(*pointer >= '0' && *pointer <= '9') ? 10 : 0;
+		result->value = result->value * base + *pointer - (*pointer >= '0' && *pointer <= '9' ? '0' : *pointer >= 'A' && *pointer <= 'F' ? 'A' : 'a');
+		result->value += !(*pointer >= '0' && *pointer <= '9') ? 10 : 0;
 	}
 	get_token(token, caret);
 }
@@ -928,8 +947,8 @@ void parse_identifier(struct identifier *identifier, struct token *token, struct
 struct node *parse_expression(precedence_t other_precedence, struct token *token, struct caret *caret, struct buffer *buffer)
 {
 	ulong beginning = token->range.beginning;
-	ulong row = token->range.row;
-	ulong column = token->range.column;
+	ulong row       = token->range.row;
+	ulong column    = token->range.column;
 
 	struct node *left = 0;
 	switch(token->tag)
@@ -941,7 +960,8 @@ struct node *parse_expression(precedence_t other_precedence, struct token *token
 		left->tag = INTEGER;
 		parse_integer(&left->data->integer, token, caret);
 		break;
-		// TODO(Emhyr): allow scientific and hex notation
+
+		// TODO(Emhyr): scientific notation for real64, decimal for real32
 	case DECIMAL:
 		left = push_into_buffer(sizeof(struct node) + sizeof(struct real), alignof(struct node), buffer);
 		left->tag = REAL64;
@@ -958,12 +978,13 @@ struct node *parse_expression(precedence_t other_precedence, struct token *token
 		parse_identifier(&left->data->identifier, token, caret);
 		break;
 	case LEFT_PARENTHESIS:
+	case LEFT_SQUARE_BRACKET:
 		left = push_into_buffer(sizeof(struct node) + sizeof(struct unary), alignof(struct node), buffer);
-		left->tag = SUBEXPRESSION;
+		left->tag = token->tag == LEFT_PARENTHESIS ? SUBEXPRESSION : ENUMERATION;
 		get_token(token, caret);
 		left->data->unary.other = parse_expression(0, token, caret, buffer);
-		if(token->tag == RIGHT_PARENTHESIS) get_token(token, caret);
-		else fail(caret->source, &token->range, "unterminated scope; expected `%c`", left->tag == SUBEXPRESSION ? ')' : ']');
+		if(token->tag == (left->tag == SUBEXPRESSION ? RIGHT_PARENTHESIS : RIGHT_SQUARE_BRACKET)) get_token(token, caret);
+		else fail(caret->source, &token->range, "expected `%c`", left->tag == SUBEXPRESSION ? ')' : ']');
 		break;
 
 		enum node_tag left_tag;
@@ -974,6 +995,7 @@ struct node *parse_expression(precedence_t other_precedence, struct token *token
 	case BACKSLASH:         left_tag = INDIRECTION; goto unary;
 	case CIRCUMFLEX_ACCENT: left_tag = JUMP;        goto unary;
 	case APOSTROPHE:        left_tag = INFERENCE;   goto unary;
+	case FULL_STOP:         left_tag = DESIGNATION; goto unary;
 	unary:
 		left = push_into_buffer(sizeof(struct node) + sizeof(struct unary), alignof(struct node), buffer);
 		left->tag = left_tag;
@@ -981,9 +1003,9 @@ struct node *parse_expression(precedence_t other_precedence, struct token *token
 		left->data->unary.other = parse_expression(precedences[left_tag], token, caret, buffer);
 		break;
 
-	case COLON:
 	case SEMICOLON:
 	case RIGHT_PARENTHESIS:
+	case RIGHT_SQUARE_BRACKET:
 	case LEFT_CURLY_BRACKET:
 	case RIGHT_CURLY_BRACKET:
 		goto finished;
@@ -993,9 +1015,9 @@ struct node *parse_expression(precedence_t other_precedence, struct token *token
 	}
 
 	left->range.beginning = beginning;
-	left->range.ending = token->range.ending;
-	left->range.row = row;
-	left->range.column = column;
+	left->range.ending    = token->range.ending;
+	left->range.row       = row;
+	left->range.column    = column;
 
 	for(;;)
 	{
@@ -1004,8 +1026,8 @@ struct node *parse_expression(precedence_t other_precedence, struct token *token
 		{
 			enum node_tag right_tag;
 		case COMMA:                           right_tag = LIST;                      goto binary;
-		case FULL_STOP:                       right_tag = RESOLUTION;                goto binary;
 		case FULL_STOP_2:                     right_tag = RANGE;                     goto binary;
+		case FULL_STOP:                       right_tag = RESOLUTION;                goto binary;
 		case PLUS_SIGN:                       right_tag = ADDITION;                  goto binary;
 		case HYPHEN_MINUS:                    right_tag = SUBTRACTION;               goto binary;
 		case ASTERISK:                        right_tag = MULTIPLICATION;            goto binary;
@@ -1035,17 +1057,23 @@ struct node *parse_expression(precedence_t other_precedence, struct token *token
 		case CIRCUMFLEX_ACCENT_EQUAL_SIGN:    right_tag = XOR_ASSIGNMENT;            goto binary;
 		case LESS_THAN_SIGN_2_EQUAL_SIGN:     right_tag = LSH_ASSIGNMENT;            goto binary;
 		case GREATER_THAN_SIGN_2_EQUAL_SIGN:  right_tag = RSH_ASSIGNMENT;            goto binary;
+		case COLON:                           right_tag = FIELD;                     goto binary;
 		default:                              right_tag = INVOCATION;                goto binary;
 		case QUESTION_MARK:                   right_tag = CONDITION;                 goto binary;
 		binary:
-			if(other_precedence == DECLARATION_PRECEDENCE && (right_tag >= ASSIGNMENT && right_tag <= RSH_ASSIGNMENT || right_tag == LIST)) goto finished;
+			if(other_precedence == DECLARATION_PRECEDENCE)
+			{
+				if(right_tag >= ASSIGNMENT && right_tag <= RSH_ASSIGNMENT || right_tag == LIST || right_tag == FIELD) goto finished;
+				else other_precedence = 0;
+			}
 			precedence_t right_precedence = precedences[right_tag];
 			if(right_precedence <= other_precedence) goto finished;
 			if(right_tag != INVOCATION) get_token(token, caret);
-			right = push_into_buffer(sizeof(struct node) + (right_tag == CONDITION ? sizeof(struct ternary) : sizeof(struct binary)), alignof(struct node), buffer);
+			bit is_ternary = right_tag == CONDITION;
+			right = push_into_buffer(sizeof(struct node) + (is_ternary ? sizeof(struct ternary) : sizeof(struct binary)), alignof(struct node), buffer);
 			right->tag = right_tag;
 			right->data->binary.left = left;
-			right->data->binary.right = parse_expression(right_tag == CONDITION ? 0 : right_precedence, token, caret, buffer);
+			right->data->binary.right = parse_expression(is_ternary ? 0 : right_precedence, token, caret, buffer);
 			if(right_tag == CONDITION)
 			{
 				if(token->tag == EXCLAMATION_MARK)
@@ -1057,9 +1085,9 @@ struct node *parse_expression(precedence_t other_precedence, struct token *token
 			}
 			break;
 			
-		case COLON:
 		case SEMICOLON:
 		case RIGHT_PARENTHESIS:
+		case RIGHT_SQUARE_BRACKET:
 		case LEFT_CURLY_BRACKET:
 		case RIGHT_CURLY_BRACKET:
 		case EXCLAMATION_MARK:
@@ -1070,9 +1098,10 @@ struct node *parse_expression(precedence_t other_precedence, struct token *token
 		}
 
 		right->range.beginning = beginning;
-		right->range.ending = token->range.ending;
-		right->range.row = row;
-		right->range.column = column;
+		right->range.ending    = token->range.ending;
+		right->range.row       = row;
+		right->range.column    = column;
+
 		left = right;
 	}
 
@@ -1087,31 +1116,34 @@ void parse_value(struct value *value, struct token *token, struct caret *caret, 
 	value->range.row       = token->range.row;
 	value->range.column    = token->range.column;
 	parse_identifier(&value->identifier, token, caret);
-	if(token->tag != COLON) fail(caret->source, &token->range, "expected `:`");
-	get_token(token, caret);
-	switch(token->tag)
+	if(token->tag == COLON)
 	{
-	case EQUAL_SIGN:
-	case COLON:
-		break;
-	default:
-		value->type = parse_expression(DECLARATION_PRECEDENCE, token, caret, buffer);
-		break;
-	}
-	value->constant = 0;
-	switch(token->tag)
-	{
-	case COLON:
-		value->constant = 1;
-	case EQUAL_SIGN:
 		get_token(token, caret);
-		value->assignment = parse_expression(DECLARATION_PRECEDENCE, token, caret, buffer);
-		break;
-	default:
-		if(!value->type) fail(caret->source, &token->range, "untyped and uninitialized value");
-		break;
+		switch(token->tag)
+		{
+		case EQUAL_SIGN:
+		case COLON:
+			break;
+		default:
+			value->type = parse_expression(DECLARATION_PRECEDENCE, token, caret, buffer);
+			break;
+		}
+		value->is_constant = 0;
+		switch(token->tag)
+		{
+		case COLON:
+			value->is_constant = 1;
+		case EQUAL_SIGN:
+			get_token(token, caret);
+			value->assignment = parse_expression(DECLARATION_PRECEDENCE, token, caret, buffer);
+			break;
+		default:
+			if(value->type) break;
+			else fail(caret->source, &token->range, "untyped and uninitialized value");
+		}
+		value->range.ending = token->range.ending;
 	}
-	value->range.ending = token->range.ending;
+	else fail(caret->source, &token->range, "expected `:`");
 }
 
 void parse_scope(struct scope *scope, struct scope *parent, struct routine *owner, struct token *token, struct caret *caret)
@@ -1121,6 +1153,10 @@ void parse_scope(struct scope *scope, struct scope *parent, struct routine *owne
 	scope->parent = parent;
 	scope->owner = owner;
 	
+	scope->range.beginning = token->range.beginning;
+	scope->range.row       = token->range.row;
+	scope->range.column    = token->range.column;
+
 	// TODO(Emhyr): ditch `allocate_buffer`
 	struct buffer *statements = allocate_buffer(GIBIBYTE(1), system_page_size);
 	struct buffer *buffer     = allocate_buffer(GIBIBYTE(1), system_page_size);
@@ -1128,19 +1164,21 @@ void parse_scope(struct scope *scope, struct scope *parent, struct routine *owne
 	struct buffer *labels     = allocate_buffer(GIBIBYTE(1), system_page_size);
 	struct buffer *routines   = allocate_buffer(GIBIBYTE(1), system_page_size);
 	
-	scope->statements               = (struct node   **)statements->base;
-	scope->statements_count         = 0;
-	scope->symbols.values           = (struct value   *)values->base;
-	scope->symbols.labels           = (struct label   *)labels->base;
-	scope->symbols.routines         = (struct routine *)routines->base;
-	scope->symbols.values_count     = 0;
-	scope->symbols.labels_count     = 0;
-	scope->symbols.routines_count   = 0;
+	scope->statements       = (struct node   **)statements->base;
+	scope->statements_count = 0;
+
+	scope->values           = (struct value   *)values->base;
+	scope->labels           = (struct label   *)labels->base;
+	scope->routines         = (struct routine *)routines->base;
+	scope->values_count     = 0;
+	scope->labels_count     = 0;
+	scope->routines_count   = 0;
 
 	get_token(token, caret);
 	for(;;)
 	{
 		struct node *node;
+		// TODO(Emhyr): supersede `onsetting_*` - it's super gross
 		struct token onsetting_token = *token;
 		struct caret onsetting_caret = *caret;
 		switch(onsetting_token.tag)
@@ -1152,9 +1190,9 @@ void parse_scope(struct scope *scope, struct scope *parent, struct routine *owne
 				*token = onsetting_token;
 				*caret = onsetting_caret;
 				struct value *value = push_into_buffer(sizeof(struct value), alignof(struct value), values);
-				++scope->symbols.values_count;
+				scope->values_count += 1;
 				parse_value(value, token, caret, buffer);
-				if(value->assignment && !value->constant)
+				if(value->assignment && !value->is_constant)
 				{
 					node = push_into_buffer(sizeof(struct node) + sizeof(struct value *), alignof(struct node), buffer);
 					node->tag = VALUE;
@@ -1178,79 +1216,21 @@ void parse_scope(struct scope *scope, struct scope *parent, struct routine *owne
 				if(token->tag == COLON)
 				{
 					struct routine *routine = push_into_buffer(sizeof(struct routine), alignof(struct routine), routines);
-					++scope->symbols.routines_count;
+					scope->routines_count += 1;
 					routine->identifier = identifier;
 					get_token(token, caret);
-					struct value  *parameter;
-					struct buffer *parameters = 0;
-					if(token->tag == LEFT_PARENTHESIS)
-					{
-						parameters = allocate_buffer(MEBIBYTE(1), system_page_size);
-						get_token(token, caret);
-						for(;;)
-						{
-							switch(token->tag)
-							{
-							case NAME:
-								parameter = push_into_buffer(sizeof(struct value), alignof(struct value), parameters);
-								++routine->parameters_count;
-								parse_value(parameter, token, caret, buffer);
-								break;
-							case COMMA:
-								get_token(token, caret);
-								break;
-							case RIGHT_PARENTHESIS:
-								get_token(token, caret);
-								goto finished_arguments;
-							default:
-								fail(caret->source, &token->range, "expected name, `,`, or `)`");
-								break;
-							}
-						}
-					finished_arguments:
-					}
-					routine->arguments_count = routine->parameters_count;
-					switch(token->tag)
-					{
-					case SEMICOLON:
-					case LEFT_CURLY_BRACKET:
-						break;
-					default:
-						if(!parameters) parameters = allocate_buffer(MEBIBYTE(1), system_page_size);
-						for(;;)
-						{
-							switch(token->tag)
-							{
-							case NAME:
-								parameter = push_into_buffer(sizeof(struct value), alignof(struct value), parameters);
-								++routine->parameters_count;
-								parse_value(parameter, token, caret, buffer);
-								break;
-							case COMMA:
-								get_token(token, caret);
-								break;
-							case LEFT_CURLY_BRACKET:
-								goto finished_results;
-							default:
-								fail(caret->source, &token->range, "expected name, `,`, or `{`");
-								break;
-							}
-						}
-					finished_results:
-						break;
-					}
-					routine->parameters = (struct value *)parameters->base;
+					routine->parameters = parse_expression(DECLARATION_PRECEDENCE, token, caret, buffer);
 					if(token->tag == LEFT_CURLY_BRACKET) parse_scope(&routine->scope, scope, routine, token, caret);
 				}
 				else
 				{
 					struct label *label = push_into_buffer(sizeof(struct node) + sizeof(struct label), alignof(struct label), labels);
-					++scope->symbols.labels_count;
+					scope->labels_count += 1;
 					label->identifier = identifier;
 					label->position = scope->statements_count;
 				}
 			}
-			else fail(caret->source, &token->range, "unexpected token; expected name");
+			else fail(caret->source, &token->range, "expected name");
 			continue;
 
 		case LEFT_CURLY_BRACKET:
@@ -1267,6 +1247,7 @@ void parse_scope(struct scope *scope, struct scope *parent, struct routine *owne
 		case SEMICOLON:
 			get_token(token, caret);
 			continue;
+
 		case RIGHT_CURLY_BRACKET:
 			get_token(token, caret);
 			goto finished;
@@ -1275,323 +1256,24 @@ void parse_scope(struct scope *scope, struct scope *parent, struct routine *owne
 	statement:
 		struct node **statement = push_into_buffer(sizeof(struct node *), alignof(struct node *), statements);
 		*statement = node;
-		++scope->statements_count;
+		scope->statements_count += 1;
 	}
 
 finished:
+	scope->range.ending = token->range.ending;
 }
 
-enum type_class
+// TODO(Emhyr): parse modules
+struct module
 {
-	PRIMITIVE,
-	POINTER,
-	ARRAY,
-	TUPLE,
-	NAMED,
-};
-
-struct pointer
-{
-	struct type *subtype;
-};
-
-struct array
-{
-	struct type *subtype;
-	ulong        count;
-};
-
-struct tuple
-{
-	struct type **subtypes;
-	ulong         count;
-};
-
-struct named
-{
-	struct value *value;
-};
-
-struct type
-{
-	enum type_class class;
-	union
-	{
-		struct address *pointer;
-		struct array   *array;
-		struct tuple   *tuple;
-		struct named   *named;
-	};
-};
-
-struct
-{
-	struct type ubyte;
-	struct type uhalf;
-	struct type uword;
-	struct type ulong;
-	struct type sbyte;
-	struct type shalf;
-	struct type sword;
-	struct type slong;
-	struct type real32;
-	struct type real64;
-} primitives =
-{
-	{PRIMITIVE},
-	{PRIMITIVE},
-	{PRIMITIVE},
-	{PRIMITIVE},
-	{PRIMITIVE},
-	{PRIMITIVE},
-	{PRIMITIVE},
-	{PRIMITIVE},
-	{PRIMITIVE},
-	{PRIMITIVE}
-};
-
-struct type_table
-{
-	struct type_table *parent;
-	struct type_table *children;
-	ulong              children_count;
-
-	struct pointer *pointers;
-	struct array   *arrays;
-	struct tuple   *tuples;
-	struct named   *nameds;
-	ulong           pointers_count;
-	ulong           arrays_count;
-	ulong           tuples_count;
-	ulong           nameds_count;
-};
-
-struct type_buffers
-{
-	struct buffer *children;
-	struct buffer *pointers;
-	struct buffer *arrays;
-	struct buffer *tuples;
-	struct buffer *nameds;
-};
-
-struct type_buffers initialize_type_table(struct type_table *table, struct type_table *parent)
-{
-	zero_memory(table, sizeof(struct type_table));
-	table->parent = parent;
-	struct type_buffers buffers =
-	{
-		.children  = allocate_buffer(GIBIBYTE(1), system_page_size),
-		.pointers  = allocate_buffer(GIBIBYTE(1), system_page_size),
-		.arrays    = allocate_buffer(GIBIBYTE(1), system_page_size),
-		.tuples    = allocate_buffer(GIBIBYTE(1), system_page_size),
-		.nameds = allocate_buffer(GIBIBYTE(1), system_page_size)
-	};
-	table->children = (struct type_table *)buffers.children->base;
-	table->pointers = (struct pointer    *)buffers.pointers->base;
-	table->arrays   = (struct array      *)buffers.arrays->base;
-	table->tuples   = (struct tuple      *)buffers.tuples->base;
-	table->nameds   = (struct named      *)buffers.nameds->base;
-	return buffers;
-}
-
-void *find(const void *query, ulong query_size, const void *items, ulong items_count)
-{
-	void *result = 0;
-	for(ulong i = 0; i < items_count; ++i)
-	{
-		const void *current = items + i * query_size;
-		if(!compare_memory(current, query, query_size))
-		{
-			result = (void *)current;
-			break;
-		}
-	}
-	return result;
-}
-
-void *find_type(enum type_class class, const void *query, struct type_table *types)
-{
-	const void *items;
-	ulong       items_count;
-	ulong       item_size;
-	switch(class)
-	{
-	case POINTER:
-		items = types->pointers;
-		items_count = types->pointers_count;
-		item_size = sizeof(struct pointer);
-		break;
-	case ARRAY:
-		items = types->arrays;
-		items_count = types->arrays_count;
-		item_size = sizeof(struct array);
-		break;
-	case TUPLE:
-		items = types->tuples;
-		items_count = types->tuples_count;
-		item_size = sizeof(struct tuple);
-		break;
-	case NAMED:
-		items = types->nameds;
-		items_count = types->nameds_count;
-		item_size = sizeof(struct named);
-		break;
-	default:
-		ASSERT(0);
-	}
-	void *result;
-	if(types)
-	{
-		result = find(query, item_size, items, items_count);
-		if(!result) result = find_type(class, query, types->parent);
-	}
-	else result = 0;
-	return result;
-}
-
-struct type *check_node(struct node *node, struct type_table *types, struct type_buffers *buffers, struct symbol_table *symbols, struct source *source)
-{
-	struct type *result = 0;
-	switch(node->tag)
-	{
-		struct type *left_type, *right_type, *other_type;
-		
-	case INTEGER:
-		     if(node->data->integer.value <= UMAXOF(ubyte)) result = &primitives.ubyte;
-		else if(node->data->integer.value <= UMAXOF(uhalf)) result = &primitives.uhalf;
-		else if(node->data->integer.value <= UMAXOF(uword)) result = &primitives.uword;
-		else                                                result = &primitives.ulong;
-		break;
-	case REAL64:
-		result = &primitives.real64;
-		break;
-#if 0
-	case STRING:
-		{
-			struct array array =
-			{
-				.subtype = &primitives.ubyte,
-				.count   = node->data->string.size
-			};
-			result->array = find_type(ARRAY, &array, types);
-			if(!result->array)
-			{
-				result->array  = push_into_buffer(sizeof(struct array), alignof(struct array), buffers->arrays);
-				*result->array = array;
-				
-			}
-		}
-		result->class = ARRAY;
-		break;
-#endif
-
-	case REFERENCE:
-		for(ulong i = 0; i < symbols->values_count; ++i)
-		{
-			struct value *value = symbols->values + i;
-			if(value->identifier.size == node->data->identifier.size)
-			{
-				if(!compare_memory(value->identifier.value, node->data->identifier.value, value->identifier.size))
-				{
-					other_type = check_node(value->type, types, buffers, symbols, source);
-					break;
-				}
-			}
-		}
-		if(other_type) result = other_type;
-		else fail(source, &node->range, "undefined reference");
-		break;
-
-	case VALUE:
-		ASSERT(!"TODO(Emhyr): ignore this path since it's already checked when checking a scope's declarations");
-		break;
-
-	case SUBEXPRESSION:
-		if(node->data->unary.other) result = check_node(node->data->unary.other, types, buffers, symbols, source);
-		else result = 0;
-		break;
-
-	case NEGATIVE:
-		other_type = check_node(node->data->unary.other, types, buffers, symbols, source);
-		if(other_type >= &primitives.ubyte && other_type <= &primitives.real64)
-		{
-			     if(other_type == &primitives.ubyte) result = &primitives.sbyte;
-			else if(other_type == &primitives.uhalf) result = &primitives.shalf;
-			else if(other_type == &primitives.uword) result = &primitives.sword;
-			else if(other_type == &primitives.ulong) result = &primitives.slong;
-			else                                     result = other_type;
-		}
-		else fail(source, &node->range, "a negation only applies to primitives");
-		break;
-
-	case RSH:
-	case LSH:
-		right_type = check_node(node->data->binary.right, types, buffers, symbols, source);
-		if(right_type >= &primitives.ubyte && right_type <= &primitives.ulong)
-		{
-			left_type = check_node(node->data->binary.left, types, buffers, symbols, source);
-			if(left_type >= &primitives.ubyte && left_type <= &primitives.ulong) result = left_type;
-			else fail(source, &node->range, "the type of the left part of a bitwise shift must be an unsigned integer");
-		}
-		else fail(source, &node->range, "the type of the right part of a bitwise shift must be an unsigned integer");
-		break;
-
-	default:
-		UNIMPLEMENTED();
-	}
-
-	return result;
-}
-
-const utf8 *stringify_type(struct type *type)
-{
-	const utf8 *string;
-	     if(type == &primitives.ubyte)  string = "ubyte"; 
-	else if(type == &primitives.uhalf)  string = "uhalf";
-	else if(type == &primitives.uword)  string = "uword";
-	else if(type == &primitives.ulong)  string = "ulong";
-	else if(type == &primitives.sbyte)  string = "sbyte"; 
-	else if(type == &primitives.shalf)  string = "shalf";
-	else if(type == &primitives.sword)  string = "sword";
-	else if(type == &primitives.slong)  string = "slong";
-	else if(type == &primitives.real32) string = "real32";
-	else if(type == &primitives.real64) string = "real64";
-	else if(type == 0)                  string = "void";
-	else UNIMPLEMENTED();
-	return string;
-}
-
-void check(struct symbol_table *symbols, struct symbol_table *parent_symbols, struct source *source)
-{
-	struct type_table   types;
-	struct type_buffers buffers = initialize_type_table(&types, 0);
-
-	for(ulong i = 0; i < symbols->values_count; ++i)
-	{
-		struct value *value = symbols->values + i;
-		struct type  *type  = check_node(value->type, &types, &buffers, symbols, source);
-		struct type  *assignment_type = 0;
-		if(value->assignment)
-		{
-			assignment_type = check_node(value->assignment, &types, &buffers, symbols, source);
-			if(type != assignment_type) fail(source, &value->range, "mismatched types: %s != %s", stringify_type(type), stringify_type(assignment_type));
-		}
-		print("%.*s: %s = %s\n", value->identifier.size, value->identifier.value, stringify_type(type), stringify_type(assignment_type));
-	}
-}
-
-typedef struct Module Module;
-
-struct Module
-{
+	struct module  *dependencies;
 	struct value   *values;
-	struct label   *labels;
 	struct routine *routines;
 	ulong           values_count;
-	ulong           labels_count;
 	ulong           routines_count;
 };
+
+// DUMPING /////////////////////////////////////////////////////////////////////
 
 void dump(struct node *);
 
@@ -1600,7 +1282,7 @@ void dump_value(struct value *value)
 	print("{\"identifier\":\"%.*s\"", value->identifier.size, value->identifier.value);
 	if(value->type) print(",\"type\":"), dump(value->type);
 	if(value->assignment) print(",\"assignment\":"), dump(value->assignment);
-	print(",\"constant\":%i}", value->constant);
+	print(",\"is_constant\":%i}", value->is_constant);
 }
 
 void dump_label(struct label *label)
@@ -1614,18 +1296,9 @@ void dump_scope(struct scope *scope);
 void dump_routine(struct routine *routine)
 {
 	print("{\"identifier\":\"%.*s\"", routine->identifier.size, routine->identifier.value);
-	print(",\"arguments\":[");
-	if(routine->parameters_count)
-	{
-		for(ulong i = 0; i < routine->parameters_count - 1; ++i)
-		{
-			struct value *value = routine->parameters + i;
-			dump_value(value);
-			print(",");
-		}
-		dump_value(routine->parameters + routine->parameters_count - 1);
-	}
-	print("],\"scope\":");
+	print(",\"arguments\":");
+	dump(routine->parameters);
+	print(",\"scope\":");
 	dump_scope(&routine->scope);
 	print("}");
 }
@@ -1634,37 +1307,37 @@ void dump_scope(struct scope *scope)
 {
 	print("{");
 	print("\"values\":[");
-	if(scope->symbols.values_count)
+	if(scope->values_count)
 	{
-		for(ulong i = 0; i < scope->symbols.values_count - 1; ++i)
+		for(ulong i = 0; i < scope->values_count - 1; ++i)
 		{
-			struct value *value = scope->symbols.values + i;
+			struct value *value = scope->values + i;
 			dump_value(value);
 			print(",");
 		}
-		dump_value(scope->symbols.values + scope->symbols.values_count - 1);
+		dump_value(scope->values + scope->values_count - 1);
 	}
 	print("],\"labels\":[");
-	if(scope->symbols.labels_count)
+	if(scope->labels_count)
 	{
-		for(ulong i = 0; i < scope->symbols.labels_count - 1; ++i)
+		for(ulong i = 0; i < scope->labels_count - 1; ++i)
 		{
-			struct label *label = scope->symbols.labels + i;
+			struct label *label = scope->labels + i;
 			dump_label(label);
 			print(",");
 		}
-		dump_label(scope->symbols.labels + scope->symbols.labels_count - 1);
+		dump_label(scope->labels + scope->labels_count - 1);
 	}
 	print("],\"routines\":[");
-	if(scope->symbols.routines_count)
+	if(scope->routines_count)
 	{
-		for(ulong i = 0; i < scope->symbols.routines_count - 1; ++i)
+		for(ulong i = 0; i < scope->routines_count - 1; ++i)
 		{
-			struct routine *routine = scope->symbols.routines + i;
+			struct routine *routine = scope->routines + i;
 			dump_routine(routine);
 			print(",");
 		}
-		dump_routine(scope->symbols.routines + scope->symbols.routines_count - 1);
+		dump_routine(scope->routines + scope->routines_count - 1);
 	}
 	print("],\"statements\":[");
 	if(scope->statements_count)
@@ -1692,6 +1365,7 @@ void dump(struct node *node)
 		switch(node->tag)
 		{
 		case SUBEXPRESSION:
+		case ENUMERATION:
 		case NEGATIVE:
 		case NEGATION:
 		case NOT:
@@ -1699,6 +1373,7 @@ void dump(struct node *node)
 		case INDIRECTION:
 		case JUMP:
 		case INFERENCE:
+		case DESIGNATION:
 			dump(node->data->unary.other);
 			break;
 
@@ -1735,6 +1410,7 @@ void dump(struct node *node)
 		case XOR_ASSIGNMENT:
 		case LSH_ASSIGNMENT:
 		case RSH_ASSIGNMENT:
+		case FIELD:
 			print("[");
 			dump(node->data->binary.left);
 			print(",");
@@ -1760,8 +1436,9 @@ void dump(struct node *node)
 			break;
 
 		case INTEGER:
-			print("%lu", node->data->integer.value);
+			print("%llu", node->data->integer.value);
 			break;
+		case REAL32:
 		case REAL64:
 			print("%f", node->data->real.value);
 			break;
@@ -1795,7 +1472,6 @@ int start(int argc, utf8 *argv[])
 		parse_scope(&scope, 0, 0, &token, &caret);
 		dump_scope(&scope);
 		print("\n");
-		check(&scope.symbols, 0, &source);
 #else
 		buffer *buffer = allocate_buffer(GIBIBYTE(1), system_page_size);
 		print("{\"statements\":[");
