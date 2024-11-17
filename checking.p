@@ -1,4 +1,6 @@
 {
+	1 + 1;
+
 	# unsigned integers
 	uint8  :: 0xff;
 	uint16 :: 0xffff;

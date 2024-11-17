@@ -40,7 +40,7 @@ static inline ulong align_forwards(ulong address, ulong alignment)
 struct buffer_data
 {
 	ubyte *ending;
-	ubyte  beginning[];
+	alignas(universal_alignment) ubyte  beginning[];
 };
 
 struct buffer
@@ -764,7 +764,8 @@ struct identifier
 
 struct value
 {
-	struct range      range;
+	struct range range;
+
 	struct identifier identifier;
 	struct node      *type;
 	struct node      *initialization;
@@ -773,30 +774,29 @@ struct value
 
 struct label
 {
+	struct range range;
+
 	struct identifier identifier;
 	ulong             position;
 };
 
 struct scope
 {
+	struct range range;
+	
 	struct scope   *parent;
 	struct routine *owner;
 
-	struct range range;
-
-	struct node **statements;
-	ulong         statements_count;
-
-	struct value   *values;
-	struct label   *labels;
-	struct routine *routines;
-	ulong           values_count;
-	ulong           labels_count;
-	ulong           routines_count;
+	struct buffer_data *statements;
+	struct buffer_data *values;
+	struct buffer_data *labels;
+	struct buffer_data *routines;
 };
 
 struct routine
 {
+	struct range range;
+
 	struct identifier identifier;
 	struct node      *parameters;
 	struct scope      scope;
@@ -835,8 +835,9 @@ struct ternary
 
 struct node
 {
+	struct range range;
+
 	enum node_tag tag;
-	struct range  range;
 	union
 	{
 		struct identifier identifier;
@@ -1171,6 +1172,8 @@ void parse_scope(struct scope *scope, struct scope *parent, struct routine *owne
 {
 	ASSERT(token->tag == LEFT_CURLY_BRACKET);
 
+	zero_memory(scope, sizeof(struct scope));
+
 	scope->parent = parent;
 	scope->owner = owner;
 	
@@ -1184,17 +1187,14 @@ void parse_scope(struct scope *scope, struct scope *parent, struct routine *owne
 	struct buffer values     = {0, 0, 0};
 	struct buffer labels     = {0, 0, 0};
 	struct buffer routines   = {0, 0, 0};
-	
-	scope->statements_count = 0;
-	scope->values_count     = 0;
-	scope->labels_count     = 0;
-	scope->routines_count   = 0;
+
+	ulong statements_count = 0;
 
 	get_token(token, caret);
 	for(;;)
 	{
 		struct node *node;
-		// TODO(Emhyr): supersede `onsetting_*` - it's super gross
+		// TODO(Emhyr): supersede the usage of `onsetting_*` - it's super gross
 		struct token onsetting_token = *token;
 		struct caret onsetting_caret = *caret;
 		switch(onsetting_token.tag)
@@ -1206,7 +1206,6 @@ void parse_scope(struct scope *scope, struct scope *parent, struct routine *owne
 				*token = onsetting_token;
 				*caret = onsetting_caret;
 				struct value *value = push(sizeof(struct value), alignof(struct value), &values);
-				scope->values_count += 1;
 				parse_value(value, token, caret, &buffer);
 				if(value->initialization && !value->is_constant)
 				{
@@ -1232,7 +1231,6 @@ void parse_scope(struct scope *scope, struct scope *parent, struct routine *owne
 				if(token->tag == COLON)
 				{
 					struct routine *routine = push(sizeof(struct routine), alignof(struct routine), &routines);
-					scope->routines_count += 1;
 					routine->identifier = identifier;
 					get_token(token, caret);
 					routine->parameters = parse_expression(DECLARATION_PRECEDENCE, token, caret, &buffer);
@@ -1241,9 +1239,8 @@ void parse_scope(struct scope *scope, struct scope *parent, struct routine *owne
 				else
 				{
 					struct label *label = push(sizeof(struct node) + sizeof(struct label), alignof(struct label), &labels);
-					scope->labels_count += 1;
 					label->identifier = identifier;
-					label->position = scope->statements_count;
+					label->position = statements_count;
 				}
 			}
 			else fail(caret->source, &token->range, "expected name");
@@ -1253,12 +1250,12 @@ void parse_scope(struct scope *scope, struct scope *parent, struct routine *owne
 			node = push(sizeof(struct node) + sizeof(struct scope), alignof(struct node), &buffer);
 			node->tag = SCOPE;
 			parse_scope(&node->data->scope, scope, 0, token, caret);
-			break;
+			goto statement;
 
 		default:
 		expression:
 			node = parse_expression(0, token, caret, &buffer);
-			break;
+			goto statement;
 	
 		case SEMICOLON:
 			get_token(token, caret);
@@ -1272,15 +1269,15 @@ void parse_scope(struct scope *scope, struct scope *parent, struct routine *owne
 	statement:
 		struct node **statement = push(sizeof(struct node *), alignof(struct node *), &statements);
 		*statement = node;
-		scope->statements_count += 1;
+		statements_count += 1;
 	}
 
 finished:
 	scope->range.ending = token->range.ending;
-	scope->statements = (struct node   **)statements.data->beginning;
-	scope->values     = (struct value   *)values.data->beginning;
-	scope->labels     = (struct label   *)labels.data->beginning;
-	scope->routines   = (struct routine *)routines.data->beginning;
+	scope->statements = statements.data;
+	scope->values     = values.data;
+	scope->labels     = labels.data;
+	scope->routines   = routines.data;
 }
 
 // TODO(Emhyr): parse modules
@@ -1327,48 +1324,48 @@ void dump_scope(struct scope *scope)
 {
 	print("{");
 	print("\"values\":[");
-	if(scope->values_count)
+	if(scope->values)
 	{
-		for(ulong i = 0; i < scope->values_count - 1; ++i)
+		for(struct value *value = (struct value *)scope->values->beginning;;)
 		{
-			struct value *value = scope->values + i;
 			dump_value(value);
-			print(",");
+			value += 1;
+			if((ubyte *)value < scope->values->ending) print(",");
+			else break;
 		}
-		dump_value(scope->values + scope->values_count - 1);
 	}
 	print("],\"labels\":[");
-	if(scope->labels_count)
+	if(scope->labels)
 	{
-		for(ulong i = 0; i < scope->labels_count - 1; ++i)
+		for(struct label *label = (struct label *)scope->labels->beginning;;)
 		{
-			struct label *label = scope->labels + i;
 			dump_label(label);
-			print(",");
+			label += 1;
+			if((ubyte *)label < scope->labels->ending) print(",");
+			else break;
 		}
-		dump_label(scope->labels + scope->labels_count - 1);
 	}
 	print("],\"routines\":[");
-	if(scope->routines_count)
+	if(scope->routines)
 	{
-		for(ulong i = 0; i < scope->routines_count - 1; ++i)
+		for(struct routine *routine = (struct routine *)scope->routines->beginning;;)
 		{
-			struct routine *routine = scope->routines + i;
 			dump_routine(routine);
-			print(",");
+			routine += 1;
+			if((ubyte *)routine < scope->routines->ending) print(",");
+			else break;
 		}
-		dump_routine(scope->routines + scope->routines_count - 1);
 	}
 	print("],\"statements\":[");
-	if(scope->statements_count)
+	if(scope->statements)
 	{
-		for(ulong i = 0; i < scope->statements_count - 1; ++i)
+		for(struct node **statement = (struct node **)scope->statements->beginning;;)
 		{
-			struct node *statement = scope->statements[i];
-			dump(statement);
-			print(",");
+			dump(*statement);
+			statement += 1;
+			if((ubyte *)statement < scope->statements->ending) print(",");
+			else break;
 		}
-		dump(scope->statements[scope->statements_count - 1]);
 	}
 	print("]}");
 }
@@ -1702,6 +1699,7 @@ static void *push(uword size, uword alignment, struct buffer *buffer)
 			buffer->reservation_size = new_reservation_size;
 			buffer->data = new_data;
 		}
+		// TODO(Emhyr): ensure that there is enough space to push into after committing more memory.
 		commit_memory((ubyte *)buffer->data + buffer->commission_size, buffer->commission_rate);
 		buffer->commission_size += buffer->commission_rate;
 	}
