@@ -22,12 +22,12 @@
 	pointer :: @void;
 
 	# array
-	u8x64 :: (uint8.. 64);
+	u8x64 :: (64** uint8);
 
 	# set / enum
 	day :: [monday, tuesday, wednesday, thursday, friday, saturday, sunday];
 	failure :: [absent, overflow];
-	failure_messages: (@uint8.. failure) : (.'absent = "absent", .failure.overflow = "overflow");
+	failure_messages: (failure** @uint8) : (.'absent = "absent", .failure.overflow = "overflow");
 
 	# record
 	f64x2 :: (x: float64, y: float64);

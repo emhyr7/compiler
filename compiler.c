@@ -198,7 +198,8 @@ enum token_tag : ubyte
 	ASTERISK_EQUAL_SIGN,
 	PLUS_SIGN_EQUAL_SIGN,
 	HYPHEN_MINUS_EQUAL_SIGN,
-	FULL_STOP_2,
+	//FULL_STOP_2,
+	ASTERISK_2,
 	SLASH_EQUAL_SIGN,
 	LESS_THAN_SIGN_EQUAL_SIGN,
 	LESS_THAN_SIGN_2,
@@ -258,7 +259,8 @@ static utf8 *representations_of_token_tags[] =
 	[ASTERISK_EQUAL_SIGN]            = "`*=`",
 	[PLUS_SIGN_EQUAL_SIGN]           = "`+=`",
 	[HYPHEN_MINUS_EQUAL_SIGN]        = "`-=`",
-	[FULL_STOP_2]                    = "`..`",
+	//[FULL_STOP_2]                    = "`..`",
+	[ASTERISK_2]                     = "`**`",
 	[SLASH_EQUAL_SIGN]               = "`/=`",
 	[LESS_THAN_SIGN_EQUAL_SIGN]      = "`<=`",
 	[LESS_THAN_SIGN_2]               = "`<<`",
@@ -469,7 +471,8 @@ repeat:
 			{
 			case '&': token->tag = AMPERSAND_2;    break;
 			case '|': token->tag = VERTICAL_BAR_2; break;
-			case '.': token->tag = FULL_STOP_2;    break;
+			//case '.': token->tag = FULL_STOP_2;    break;
+			case '*': token->tag = ASTERISK_2;     break;
 			case '<':
 			case '>':
 				get_character(caret);
@@ -1026,7 +1029,8 @@ struct node *parse_expression(precedence_t other_precedence, struct token *token
 		{
 			enum node_tag right_tag;
 		case COMMA:                           right_tag = LIST;                      goto binary;
-		case FULL_STOP_2:                     right_tag = RANGE;                     goto binary;
+		//case FULL_STOP_2:                     right_tag = RANGE;                     goto binary;
+		case ASTERISK_2:                      right_tag = RANGE;                     goto binary;
 		case FULL_STOP:                       right_tag = RESOLUTION;                goto binary;
 		case PLUS_SIGN:                       right_tag = ADDITION;                  goto binary;
 		case HYPHEN_MINUS:                    right_tag = SUBTRACTION;               goto binary;
