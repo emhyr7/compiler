@@ -32,20 +32,26 @@ constexpr uword universal_alignment = alignof(long double);
 ulong get_backward_alignment(ulong address, ulong alignment);
 ulong get_forward_alignment(ulong address, ulong alignment);
 
-struct buffer
+static inline ulong align_forwards(ulong address, ulong alignment)
 {
-	ubyte *memory;
-	uword  reservation_size;
-	uword  commission_rate;
-	uword  commission_size;
-	uword  mass;
+	return address + get_forward_alignment(address, alignment);
+}
 
-	alignas(universal_alignment) ubyte base[];
+struct buffer_data
+{
+	ubyte *ending;
+	ubyte  beginning[];
 };
 
-struct buffer *allocate_buffer  (uword reservation_size, uword commission_rate);
-void           deallocate_buffer(struct buffer *buffer);
-void          *push_into_buffer (uword size, uword alignment, struct buffer *buffer);
+struct buffer
+{
+	ulong reservation_size;
+	ulong commission_rate;
+	struct buffer_data *data;
+	ulong commission_size;
+};
+
+void *push(uword size, uword alignment, struct buffer *buffer);
 
 struct source
 {
@@ -211,6 +217,7 @@ enum token_tag : ubyte
 	CIRCUMFLEX_ACCENT_EQUAL_SIGN,
 	VERTICAL_BAR_EQUAL_SIGN,
 	VERTICAL_BAR_2,
+	ARROW,
 };
 
 static utf8 *representations_of_token_tags[] =
@@ -271,7 +278,8 @@ static utf8 *representations_of_token_tags[] =
 	[GREATER_THAN_SIGN_2_EQUAL_SIGN] = "`>>=`",
 	[CIRCUMFLEX_ACCENT_EQUAL_SIGN]   = "`^=`",
 	[VERTICAL_BAR_EQUAL_SIGN]        = "`|=`",
-	[VERTICAL_BAR_2]                 = "`||`"
+	[VERTICAL_BAR_2]                 = "`||`",
+	[ARROW]                          = "`->`"
 };
 
 struct token
@@ -498,6 +506,11 @@ repeat:
 			}
 			goto twice;
 		}
+		else if(caret->character == '-' && second_character == '>')
+		{
+			token->tag = ARROW;
+			goto twice;
+		}
 		else goto single;
 
 	case '#':
@@ -549,6 +562,7 @@ failed:
 enum node_tag : ubyte
 {
 	INVOCATION,  // expression expression
+	LAMBDA,      // expression `->` expression ? this must be of an address
 
 	NEGATIVE,    // `-` expression
 	NEGATION,    // `!` expression
@@ -615,6 +629,7 @@ enum node_tag : ubyte
 static const utf8 *representations_of_node_tags[] =
 {
 	[INVOCATION]                = "invocation",
+	[LAMBDA]                    = "lambda",
 	[NEGATIVE]                  = "negative",
 	[NEGATION]                  = "negation",
 	[NOT]                       = "NOT",
@@ -683,6 +698,7 @@ static precedence_t precedences[] =
 	[RESOLUTION]                = 16,
 
 	[INVOCATION]                = 15,
+	[LAMBDA]                    = 15,
 	
 	[NEGATIVE]                  = 14,
 	[NEGATION]                  = 14,
@@ -751,7 +767,7 @@ struct value
 	struct range      range;
 	struct identifier identifier;
 	struct node      *type;
-	struct node      *assignment;
+	struct node      *initialization;
 	bit               is_constant : 1;
 };
 
@@ -959,30 +975,30 @@ struct node *parse_expression(precedence_t other_precedence, struct token *token
 	case BINARY:
 	case DIGITAL:
 	case HEXADECIMAL:
-		left = push_into_buffer(sizeof(struct node) + sizeof(struct integer), alignof(struct node), buffer);
+		left = push(sizeof(struct node) + sizeof(struct integer), alignof(struct node), buffer);
 		left->tag = INTEGER;
 		parse_integer(&left->data->integer, token, caret);
 		break;
 
 		// TODO(Emhyr): scientific notation for real64, decimal for real32
 	case DECIMAL:
-		left = push_into_buffer(sizeof(struct node) + sizeof(struct real), alignof(struct node), buffer);
+		left = push(sizeof(struct node) + sizeof(struct real), alignof(struct node), buffer);
 		left->tag = REAL64;
 		parse_real(&left->data->real, token, caret);
 		break;
 	case TEXT:
-		left = push_into_buffer(sizeof(struct node) + sizeof(struct string), alignof(struct node), buffer);
+		left = push(sizeof(struct node) + sizeof(struct string), alignof(struct node), buffer);
 		left->tag = STRING;
 		parse_string(&left->data->string, token, caret);
 		break;
 	case NAME:
-		left = push_into_buffer(sizeof(struct node) + sizeof(struct identifier), alignof(struct node), buffer);
+		left = push(sizeof(struct node) + sizeof(struct identifier), alignof(struct node), buffer);
 		left->tag = REFERENCE;
 		parse_identifier(&left->data->identifier, token, caret);
 		break;
 	case LEFT_PARENTHESIS:
 	case LEFT_SQUARE_BRACKET:
-		left = push_into_buffer(sizeof(struct node) + sizeof(struct unary), alignof(struct node), buffer);
+		left = push(sizeof(struct node) + sizeof(struct unary), alignof(struct node), buffer);
 		left->tag = token->tag == LEFT_PARENTHESIS ? SUBEXPRESSION : ENUMERATION;
 		get_token(token, caret);
 		left->data->unary.other = parse_expression(0, token, caret, buffer);
@@ -1000,7 +1016,7 @@ struct node *parse_expression(precedence_t other_precedence, struct token *token
 	case APOSTROPHE:        left_tag = INFERENCE;   goto unary;
 	case FULL_STOP:         left_tag = DESIGNATION; goto unary;
 	unary:
-		left = push_into_buffer(sizeof(struct node) + sizeof(struct unary), alignof(struct node), buffer);
+		left = push(sizeof(struct node) + sizeof(struct unary), alignof(struct node), buffer);
 		left->tag = left_tag;
 		get_token(token, caret);
 		left->data->unary.other = parse_expression(precedences[left_tag], token, caret, buffer);
@@ -1062,6 +1078,7 @@ struct node *parse_expression(precedence_t other_precedence, struct token *token
 		case LESS_THAN_SIGN_2_EQUAL_SIGN:     right_tag = LSH_ASSIGNMENT;            goto binary;
 		case GREATER_THAN_SIGN_2_EQUAL_SIGN:  right_tag = RSH_ASSIGNMENT;            goto binary;
 		case COLON:                           right_tag = FIELD;                     goto binary;
+		case ARROW:                           right_tag = LAMBDA;                    goto binary;
 		default:                              right_tag = INVOCATION;                goto binary;
 		case QUESTION_MARK:                   right_tag = CONDITION;                 goto binary;
 		binary:
@@ -1074,7 +1091,7 @@ struct node *parse_expression(precedence_t other_precedence, struct token *token
 			if(right_precedence <= other_precedence) goto finished;
 			if(right_tag != INVOCATION) get_token(token, caret);
 			bit is_ternary = right_tag == CONDITION;
-			right = push_into_buffer(sizeof(struct node) + (is_ternary ? sizeof(struct ternary) : sizeof(struct binary)), alignof(struct node), buffer);
+			right = push(sizeof(struct node) + (is_ternary ? sizeof(struct ternary) : sizeof(struct binary)), alignof(struct node), buffer);
 			right->tag = right_tag;
 			right->data->binary.left = left;
 			right->data->binary.right = parse_expression(is_ternary ? 0 : right_precedence, token, caret, buffer);
@@ -1139,7 +1156,7 @@ void parse_value(struct value *value, struct token *token, struct caret *caret, 
 			value->is_constant = 1;
 		case EQUAL_SIGN:
 			get_token(token, caret);
-			value->assignment = parse_expression(DECLARATION_PRECEDENCE, token, caret, buffer);
+			value->initialization = parse_expression(DECLARATION_PRECEDENCE, token, caret, buffer);
 			break;
 		default:
 			if(value->type) break;
@@ -1162,18 +1179,13 @@ void parse_scope(struct scope *scope, struct scope *parent, struct routine *owne
 	scope->range.column    = token->range.column;
 
 	// TODO(Emhyr): ditch `allocate_buffer`
-	struct buffer *statements = allocate_buffer(GIBIBYTE(1), system_page_size);
-	struct buffer *buffer     = allocate_buffer(GIBIBYTE(1), system_page_size);
-	struct buffer *values     = allocate_buffer(GIBIBYTE(1), system_page_size);
-	struct buffer *labels     = allocate_buffer(GIBIBYTE(1), system_page_size);
-	struct buffer *routines   = allocate_buffer(GIBIBYTE(1), system_page_size);
+	struct buffer statements = {0, 0, 0};
+	struct buffer buffer     = {0, 0, 0};
+	struct buffer values     = {0, 0, 0};
+	struct buffer labels     = {0, 0, 0};
+	struct buffer routines   = {0, 0, 0};
 	
-	scope->statements       = (struct node   **)statements->base;
 	scope->statements_count = 0;
-
-	scope->values           = (struct value   *)values->base;
-	scope->labels           = (struct label   *)labels->base;
-	scope->routines         = (struct routine *)routines->base;
 	scope->values_count     = 0;
 	scope->labels_count     = 0;
 	scope->routines_count   = 0;
@@ -1193,12 +1205,12 @@ void parse_scope(struct scope *scope, struct scope *parent, struct routine *owne
 				// TODO(Emhyr): parse modules
 				*token = onsetting_token;
 				*caret = onsetting_caret;
-				struct value *value = push_into_buffer(sizeof(struct value), alignof(struct value), values);
+				struct value *value = push(sizeof(struct value), alignof(struct value), &values);
 				scope->values_count += 1;
-				parse_value(value, token, caret, buffer);
-				if(value->assignment && !value->is_constant)
+				parse_value(value, token, caret, &buffer);
+				if(value->initialization && !value->is_constant)
 				{
-					node = push_into_buffer(sizeof(struct node) + sizeof(struct value *), alignof(struct node), buffer);
+					node = push(sizeof(struct node) + sizeof(struct value *), alignof(struct node), &buffer);
 					node->tag = VALUE;
 					node->data->value = value;
 					goto statement;
@@ -1219,16 +1231,16 @@ void parse_scope(struct scope *scope, struct scope *parent, struct routine *owne
 				parse_identifier(&identifier, token, caret);
 				if(token->tag == COLON)
 				{
-					struct routine *routine = push_into_buffer(sizeof(struct routine), alignof(struct routine), routines);
+					struct routine *routine = push(sizeof(struct routine), alignof(struct routine), &routines);
 					scope->routines_count += 1;
 					routine->identifier = identifier;
 					get_token(token, caret);
-					routine->parameters = parse_expression(DECLARATION_PRECEDENCE, token, caret, buffer);
+					routine->parameters = parse_expression(DECLARATION_PRECEDENCE, token, caret, &buffer);
 					if(token->tag == LEFT_CURLY_BRACKET) parse_scope(&routine->scope, scope, routine, token, caret);
 				}
 				else
 				{
-					struct label *label = push_into_buffer(sizeof(struct node) + sizeof(struct label), alignof(struct label), labels);
+					struct label *label = push(sizeof(struct node) + sizeof(struct label), alignof(struct label), &labels);
 					scope->labels_count += 1;
 					label->identifier = identifier;
 					label->position = scope->statements_count;
@@ -1238,14 +1250,14 @@ void parse_scope(struct scope *scope, struct scope *parent, struct routine *owne
 			continue;
 
 		case LEFT_CURLY_BRACKET:
-			node = push_into_buffer(sizeof(struct node) + sizeof(struct scope), alignof(struct node), buffer);
+			node = push(sizeof(struct node) + sizeof(struct scope), alignof(struct node), &buffer);
 			node->tag = SCOPE;
 			parse_scope(&node->data->scope, scope, 0, token, caret);
 			break;
 
 		default:
 		expression:
-			node = parse_expression(0, token, caret, buffer);
+			node = parse_expression(0, token, caret, &buffer);
 			break;
 	
 		case SEMICOLON:
@@ -1258,13 +1270,17 @@ void parse_scope(struct scope *scope, struct scope *parent, struct routine *owne
 		}
 
 	statement:
-		struct node **statement = push_into_buffer(sizeof(struct node *), alignof(struct node *), statements);
+		struct node **statement = push(sizeof(struct node *), alignof(struct node *), &statements);
 		*statement = node;
 		scope->statements_count += 1;
 	}
 
 finished:
 	scope->range.ending = token->range.ending;
+	scope->statements = (struct node   **)statements.data->beginning;
+	scope->values     = (struct value   *)values.data->beginning;
+	scope->labels     = (struct label   *)labels.data->beginning;
+	scope->routines   = (struct routine *)routines.data->beginning;
 }
 
 // TODO(Emhyr): parse modules
@@ -1285,7 +1301,7 @@ void dump_value(struct value *value)
 {
 	print("{\"identifier\":\"%.*s\"", value->identifier.size, value->identifier.value);
 	if(value->type) print(",\"type\":"), dump(value->type);
-	if(value->assignment) print(",\"assignment\":"), dump(value->assignment);
+	if(value->initialization) print(",\"initialization\":"), dump(value->initialization);
 	print(",\"is_constant\":%i}", value->is_constant);
 }
 
@@ -1415,6 +1431,7 @@ void dump(struct node *node)
 		case LSH_ASSIGNMENT:
 		case RSH_ASSIGNMENT:
 		case FIELD:
+		case LAMBDA:
 			print("[");
 			dump(node->data->binary.left);
 			print(",");
@@ -1615,6 +1632,8 @@ static inline ulong get_forward_alignment(ulong address, ulong alignment)
 	return remainder ? alignment - remainder : 0;
 }
 
+#if 0
+
 static struct buffer *allocate_buffer(uword reservation_size, uword commission_rate)
 {
 	reservation_size += get_forward_alignment(reservation_size, system_page_size);
@@ -1634,7 +1653,7 @@ static inline void deallocate_buffer(struct buffer *buffer)
 	release_memory(buffer, buffer->reservation_size);
 }
 
-static void *push_into_buffer(uword size, uword alignment, struct buffer *buffer)
+static void *push(uword size, uword alignment, struct buffer *buffer)
 {
 	ASSERT(alignment % 2 == 0);
 	uword forward_alignment = get_forward_alignment((ulong)buffer + buffer->mass, alignment);
@@ -1655,5 +1674,40 @@ static void *push_into_buffer(uword size, uword alignment, struct buffer *buffer
 	buffer->mass += size;
 	return result;
 }
+#endif
 
-
+static void *push(uword size, uword alignment, struct buffer *buffer)
+{
+	ASSERT(alignment % 2 == 0);
+	if(!buffer->data)
+	{
+		if(!buffer->reservation_size) buffer->reservation_size = GIBIBYTE(1);
+		if(!buffer->commission_rate)  buffer->commission_rate  = system_page_size;
+		buffer->data = reserve_memory(buffer->reservation_size);
+		commit_memory(buffer->data, buffer->commission_rate);
+		buffer->commission_size = buffer->commission_rate;
+		buffer->data->ending = buffer->data->beginning;
+	}
+	ulong forward_alignment = get_forward_alignment((ulong)buffer->data->beginning, alignment);
+	ulong mass = buffer->data->ending - buffer->data->beginning;
+	if(mass + forward_alignment + size > buffer->commission_size)
+	{
+		if(buffer->commission_size + buffer->commission_rate > buffer->reservation_size)
+		{
+			ulong new_reservation_size = align_forwards(buffer->reservation_size + buffer->reservation_size / 2, system_page_size);
+			struct buffer_data *new_data = reserve_memory(new_reservation_size);
+			commit_memory(new_data, buffer->commission_size);
+			new_data->ending = new_data->beginning + mass;
+			copy_memory(new_data->beginning, buffer->data->beginning, mass);
+			buffer->reservation_size = new_reservation_size;
+			buffer->data = new_data;
+		}
+		commit_memory((ubyte *)buffer->data + buffer->commission_size, buffer->commission_rate);
+		buffer->commission_size += buffer->commission_rate;
+	}
+	buffer->data->ending += forward_alignment;
+	void *result = buffer->data->ending;
+	buffer->data->ending += size;
+	zero_memory(result, size);
+	return result;
+}

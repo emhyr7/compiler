@@ -24,13 +24,13 @@
 	# array
 	u8x64 :: (64** uint8);
 
-	# set / enum
-	day :: [monday, tuesday, wednesday, thursday, friday, saturday, sunday];
+	# enumeration
+	day :: [sunday, monday, tuesday, wednesday, thursday, friday, saturday];
 	failure :: [absent, overflow];
 	failure_messages: (failure** @uint8) : (.'absent = "absent", .failure.overflow = "overflow");
 
 	# record
-	f64x2 :: (x: float64, y: float64);
+	f64x2 :: (2** float32) | (x: float64, y: float64);
 
 	# union
 	word :: (value: uint16) | (high: uint8, low: uint8);
@@ -39,7 +39,11 @@
 	position :: f64x2;
 
 	# routine
-	callback :: (data: @void) void;
+	callback :: @(data: @void) -> void;
+
+	.do-foo:
+	{
+	}
 
 	# initializations
 	uninitialized: position;
