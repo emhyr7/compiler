@@ -39,7 +39,6 @@ static inline ADDRESS align_forwards(ADDRESS address, SIZE alignment) {
 }
 
 struct BUFFER {
-	/* BOOLEAN discontiguous; */ /* NOTE(Emhyr): incase it's wanted */
 	SIZE reservation_size;
 	SIZE commission_rate;
 	VOID *data;
@@ -47,9 +46,7 @@ struct BUFFER {
 	SIZE commission_size;
 };
 
-/* NOTE(Emhyr): differentiating between (dis)contiguousness incase for search-and-replace */
-typedef struct BUFFER C_BUFFER; /* contiguous buffer */
-typedef struct BUFFER D_BUFFER; /* discontiguous buffer */
+typedef struct BUFFER C_BUFFER;
 
 #define DEFAULT_BUFFER (struct BUFFER){ .reservation_size = 0, .commission_rate = 0, .data = 0 }
 
