@@ -78,7 +78,7 @@ typedef U32 COUNT;
 typedef BYTE UTF8;
 typedef WORD UTF32;
 
-/* from https:/*bjoern.hoehrmann.de/utf-8/decoder/dfa/ */ */
+/* from https://bjoern.hoehrmann.de/utf-8/decoder/dfa/ */
 enum UTF8_STATE {
 	UTF8_STATE_accept = 0,
 	UTF8_STATE_reject = 1,
