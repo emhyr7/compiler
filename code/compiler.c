@@ -1067,7 +1067,7 @@ static struct NODE *parse_expression(C_BUFFER *buffer, PRECEDENCE other_preceden
 		switch (node_tag) {
 		case NODE_TAG_nil:
 			goto finished;
-		default: /* NOTE(Emhyr): instead of bunch of conditions interposing, could probably verbosely add special `case`s to reduce the amount of conditional branches */
+		default: /* NOTE(Emhyr): could probably add special `case`s to reduce the amount of conditional branches */
 			PRECEDENCE precedence = precedence_from_node_tag[node_tag];
 			if (precedence < other_precedence) goto finished;
 			if (node_tag != NODE_TAG_invocation) parser->token = lex(&parser->lexer);
@@ -1104,72 +1104,6 @@ expression node, but rather a deticated medium for efficient lookup.
 
 NOTE(Emhyr): even statements can
 */
-
-#if 0
-
-typedef WORD NODE_INDEX;
-
-struct SCOPE {
-	/* TODO */
-	struct NODE *nodes;
-	NODE_INDEX *statements;
-	struct VALUE_ENTITY *values;
-	struct LABEL_ENTITY *labels;
-	struct ROUTINE_ENTITY *routines;
-	struct TYPE_ENTITY *types;
-};
-
-struct ENTITY_INFO {
-	const CHAR *identifier;
-	COUNT identifier_size;
-	/* ... */
-};
-
-#define _STRUCT_ENTITY_BASE struct { struct ENTTIY_INFO *info; struct RANGE range; }
-
-/*
-NOTE(Emhyr): should we store `struct NODE *` or `NODDE_INDEX`
-
-NOTE(Emhyr): identifiers are stored in a lookup table.
-*/
-
-/* identifier `:` [type] `=` expression */
-struct VALUE_ENTITY {
-	_STRUCT_ENTITY_BASE;
-	struct NODE *type;
-	struct NODE *assignment;
-}; /* NOTE(Emhyr): constnats will be made by qualifying the value as a constant. maybe by `#constant` somewhere around the declaration ? */
-
-/* `.` identifier */
-struct LABEL_ENTITY {
-	_STRUCT_ENTITY_BASE;
-	NODE_INDEX position;
-};
-
-/* `.` identifier `:` `(` [value {`,` value}] `)` [`->` type] [scope] */
-struct ROUTINE_ENTITY {
-	_STRUCT_ENTITY_BASE;
-	struct VALUE_ENTITY *arguments;
-	COUNT arguments_count;
-	struct NODE *results;
-	struct SCOPE scope;
-};
-
-/* identifier `:` `:` type */
-struct TYPE_ENTITY {
-	_STRUCT_ENTITY_BASE;
-	struct NODE *assignment;
-};
-
-/* ??? */
-struct MODULE_ENTITY {
-	_STRUCT_ENTITY_BASE;
-	values;
-	routines;
-	types;
-};
-
-#endif
 
 static struct PARSER create_parser(const CHAR *path)
 {
