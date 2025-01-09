@@ -1029,7 +1029,6 @@ junction nodes are many.
 static struct NODE *parse_expression(C_BUFFER *buffer, PRECEDENCE other_precedence, struct PARSER *parser) {
 	struct RANGE beginning_range = parser->token.range;
 	SIZE beginning_data_size = buffer->data_size;
-	
 	struct NODE *node = 0, *other_node;
 	enum NODE_TAG node_tag = unary_node_tag_from_token_tag[parser->token.tag];
 	switch (node_tag) {
@@ -1048,43 +1047,38 @@ static struct NODE *parse_expression(C_BUFFER *buffer, PRECEDENCE other_preceden
 		if (is_literal)
 			parser->token = lex(&parser->lexer);
 		else if (node_tag == NODE_TAG_indexation || node_tag == NODE_TAG_subexpression) {
-			parse_expression(buffer, 0, parser);
-			if (parser->token.tag != (node_tag == NODE_TAG_indexation ? TOKEN_TAG_right_square_bracket : TOKEN_TAG_right_parenthesis))
-				fail(&parser->lexer.source, &parser->token.range, "expected farts");
-			node->range.ending = parser->token.range.ending;
-			parser->token = lex(&parser->lexer);
+			(VOID)parse_expression(buffer, 0, parser);
+			if (parser->token.tag == (node_tag == NODE_TAG_indexation ? TOKEN_TAG_right_square_bracket : TOKEN_TAG_right_parenthesis)) {
+				node->range.ending = parser->token.range.ending;
+				parser->token = lex(&parser->lexer);
+			}
 		} else {
 			other_node = parse_expression(buffer, other_precedence, parser);
 			node->range.ending = other_node->range.ending;
 		}
 		break;
 	}
-
-	SIZE left_data_size = buffer->data_size - beginning_data_size;
-
 	for (;;) {
 		node_tag = binary_node_tag_from_token_tag[parser->token.tag];
 		switch (node_tag) {
 		case NODE_TAG_nil:
 			goto finished;
-		default: /* NOTE(Emhyr): could probably add special `case`s to reduce the amount of conditional branches */
+		default:
 			PRECEDENCE precedence = precedence_from_node_tag[node_tag];
 			if (precedence < other_precedence) goto finished;
 			if (node_tag != NODE_TAG_invocation) parser->token = lex(&parser->lexer);
 			(VOID)push(sizeof(struct NODE), alignof(struct NODE), buffer);
 			node = buffer->data + beginning_data_size;
-			move(node + 1, node, left_data_size);
+			move(node + 1, node, buffer->data_size - beginning_data_size);
 			node->tag = node_tag;
 			node->range = beginning_range;
 			if (node_tag == NODE_TAG_implication) {
-				parse_expression(buffer, 0, parser);
-				if (parser->token.tag != TOKEN_TAG_exclamation_mark)
-					fail(&parser->lexer.source, &parser->token.range, "expected `!` when parsing other part of implication");
+				(VOID)parse_expression(buffer, 0, parser);
+				if (parser->token.tag == TOKEN_TAG_exclamation_mark) parser->token = lex(&parser->lexer);
 			}
 			if (node_tag == NODE_TAG_cast) other_node = parse_type(buffer, parser);
 			else other_node = parse_expression(buffer, precedence, parser);
 			node->range.ending = other_node->range.ending;
-			/* NOTE(Emhyr): by default, the evluation order is left-to-right. you can change the order by swaping */
 			break;
 		}
 	}
@@ -1094,8 +1088,29 @@ finished:
 }
 
 static struct NODE *parse_type(C_BUFFER *buffer, struct PARSER *parser) {
-	assert(0);
-	return 0;
+	struct NODE *node = 0;
+	struct RANGE range = parser->token.range;
+	switch (parser->token.tag) {
+	case TOKEN_TAG_word:
+		node = push(sizeof(struct NODE), alignof(struct NODE), buffer);
+		node->tag = NODE_TAG_reference;
+		node->range = range;
+		node->range.ending = parser->token.range.ending;
+		parser->token = lex(&parser->lexer);
+		break;
+	case TOKEN_TAG_at_sign:
+		parser->token = lex(&parser->lexer);
+		node = push(sizeof(struct NODE), alignof(struct NODE), buffer);
+		node->tag = NODE_TAG_address;
+		node->range = range;
+		node->range.ending = parse_type(buffer, parser)->range.ending;
+		break;
+	case TOKEN_TAG_left_square_bracket:
+	case TOKEN_TAG_left_parenthesis:
+	default:
+		fail(&parser->lexer.source, &parser->token.range, "unexpected token when parsing type");
+	}
+	return node;
 }
 
 /*
